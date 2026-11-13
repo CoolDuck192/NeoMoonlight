@@ -870,8 +870,8 @@ struct _FlatDisplayStreamView: View {
     @StateObject private var hdrPanelSettings = HDRSettings()
     
     @State private var showVirtualKeyboard = false
-    @State private var keyboardInput: String = " "
-    @State private var previousKeyboardInput: String = " "
+    @State private var keyboardInput: String = ""
+    @State private var previousKeyboardInput: String = ""
     @FocusState private var isKeyboardFocused: Bool
     @State private var hideControls: Bool = true
     @State private var controlsExpanded: Bool = false
