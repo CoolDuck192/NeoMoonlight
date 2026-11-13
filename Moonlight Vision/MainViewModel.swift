@@ -717,6 +717,9 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
             if host.appList != newAppList {
                 print("refreshAppsFor - App list changed. Updating host.")
                 host.appList = newAppList
+                // Save the new list (this used to happen only when an app was removed,
+                // and then with the old list), so it survives an app restart.
+                DataManager().updateApps(forExisting: host)
             } else {
                 print("refreshAppsFor - App list unchanged.")
             }
