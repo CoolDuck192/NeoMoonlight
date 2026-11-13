@@ -39,6 +39,8 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
     @Published var errorAddingHost = false
     @Published var addHostErrorMessage = ""
+    /// True while Add Computer is contacting the address the user typed.
+    @Published var isAddingHost = false
 
     @Published var currentStreamConfig = StreamConfiguration()
     @Published var activelyStreaming = false
@@ -448,18 +450,37 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     // MARK: - Pairing
 
     func manuallyDiscoverHost(hostOrIp: String) {
-        discoveryManager?.discoverHost(hostOrIp, withCallback: hostMaybeFound)
+        let address = hostOrIp.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty, !isAddingHost else { return }
+        guard let manager = discoveryManager else { return }
+
+        errorAddingHost = false
+        addHostErrorMessage = ""
+        isAddingHost = true
+
+        // discoverHost makes network requests and, for a PC that is already in the
+        // list, a dispatch_sync to the main queue. Called on the main thread it froze
+        // the menu (or hung it for good), so it runs on a background queue.
+        DispatchQueue.global(qos: .userInitiated).async {
+            manager.discoverHost(address, withCallback: self.hostMaybeFound)
+        }
     }
 
     nonisolated func hostMaybeFound(host: TemporaryHost?, error: String?) {
         Task { @MainActor in
+            self.isAddingHost = false
             if let host {
                 print("Discovered host: \(host.name)")
                 self.upsertDiscoveredHosts([host])
             } else {
                 print("Error discovering host: \(error ?? "Unknown error")")
-                self.errorAddingHost = true
-                self.addHostErrorMessage = error ?? "Unknown Error"
+                if error == "Host information updated" {
+                    // The PC was already in the list and its address was refreshed. Not an error.
+                    print("Add Computer: this PC is already in the list; address updated.")
+                } else {
+                    self.addHostErrorMessage = error ?? "Could not add this computer."
+                    self.errorAddingHost = true
+                }
             }
         }
     }

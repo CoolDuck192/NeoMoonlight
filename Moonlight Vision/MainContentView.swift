@@ -596,6 +596,16 @@ struct ComputersTabView: View {
                     }
                 }
                 
+                if viewModel.isAddingHost {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                        Text("Looking for the computer...")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(.vertical, 8)
+                }
+
                 StandaloneCoopCard(onTap: {
                     showCoopFlow = true
                 })
@@ -680,6 +690,11 @@ struct ComputersTabView: View {
             }
         } message: {
             Text("Are you sure you want to delete this computer?")
+        }
+        .alert("Could Not Add Computer", isPresented: Binding(get: { canShowModal && viewModel.errorAddingHost }, set: { viewModel.errorAddingHost = $0 })) {
+            Button("OK", role: .cancel) { viewModel.errorAddingHost = false }
+        } message: {
+            Text(viewModel.addHostErrorMessage)
         }
         .onChange(of: addingHost) { _, newValue in
             updateHeaderIconGlow()
