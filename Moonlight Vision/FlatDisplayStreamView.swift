@@ -142,7 +142,7 @@ struct FlatInputCaptureView: UIViewRepresentable {
     }
 }
 
-class FlatInputCaptureUIView: UIView, UIKeyInput, UIPointerInteractionDelegate, UIGestureRecognizerDelegate {
+class FlatInputCaptureUIView: StreamKeyCaptureUIView, UIKeyInput, UIPointerInteractionDelegate, UIGestureRecognizerDelegate {
     var controllerSupport: ControllerSupport?
     weak var gamepadSession: StreamGamepadSession?
     var streamConfig: StreamConfiguration?
@@ -727,6 +727,17 @@ class FlatInputCaptureUIView: UIView, UIKeyInput, UIPointerInteractionDelegate, 
     override var canBecomeFocused: Bool { true }
     override var canBecomeFirstResponder: Bool { true }
     var hasText: Bool { true }
+
+    /// Settings > Additional Options > "Full Hardware Keyboard in Flat Display".
+    /// UserDefaults.standard key "keyboard.flatRawKeys" (Bool). On by default, also when never set.
+    /// Off = previous behaviour: UIKit turns key presses into text (insertText / deleteBackward).
+    override var forwardsHardwareKeys: Bool {
+        UserDefaults.standard.object(forKey: "keyboard.flatRawKeys") as? Bool ?? true
+    }
+
+    /// Flat forwards real keyboard keys only. Direction presses that carry no UIKey
+    /// (remote or game-controller D-pad) stay with UIKit, as they always have in Flat.
+    override var forwardsKeylessArrowPresses: Bool { false }
     
     func insertText(_ text: String) {
         // Handle Return/Enter key specially - it comes as "\n" or "\r"
