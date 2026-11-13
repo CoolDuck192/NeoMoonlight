@@ -7479,8 +7479,12 @@ struct _CurvedDisplayStreamView: View {
     }
 
     /// Default Y for the screen at the user's current head height.
+    /// The lift uses a fixed 16:9 reference panel rather than the stream's own aspect ratio:
+    /// an ultrawide panel is shorter, so deriving the lift from it made 21:9 and 32:9 streams
+    /// spawn 0.4-0.8 m lower than a 16:9 stream.
     private func defaultScreenY(headPos: SIMD3<Float>, verticalOffset: Float) -> Float {
-        let panelHalfHeight = CURVED_MAX_WIDTH_METERS * screenAspect * CurvedFirstLaunch.eyeLevelLiftReferenceScale * 0.5
+        let referenceAspect: Float = 9.0 / 16.0
+        let panelHalfHeight = CURVED_MAX_WIDTH_METERS * referenceAspect * CurvedFirstLaunch.eyeLevelLiftReferenceScale * 0.5
         return headPos.y + verticalOffset + panelHalfHeight * 2
     }
 
