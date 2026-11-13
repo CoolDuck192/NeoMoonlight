@@ -644,3 +644,34 @@ extension UnsafeMutableBufferPointer {
         return UnsafeMutableBufferPointer(start: start, count: count)
     }
 }
+
+// MARK: - Objective-C bridge for the UIKit video path
+
+/// Exposes this parser to VideoDecoderRenderer.m. The UIKit path historically built its AV1
+/// CMVideoFormatDescription through FFmpeg's coded bitstream reader; FFmpeg libraries built
+/// without CONFIG_CBS_AV1 make ff_cbs_init() fail with EINVAL on every IDR frame, leaving the
+/// stream stuck requesting IDRs forever. This parser has no FFmpeg dependency.
+@objc(AV1FormatDescriptionBridge)
+public class AV1FormatDescriptionBridge: NSObject {
+
+    /// Named without a create/copy prefix so the generated ObjC interface is
+    /// cf_returns_not_retained: the ObjC caller must CFRetain if it stores the result.
+    @objc public static func formatDescription(
+        fromIDRFrame frameData: Data,
+        masteringDisplayColorVolume mdcv: Data?,
+        contentLightLevelInfo clli: Data?
+    ) -> CMFormatDescription? {
+        var mutable = frameData
+        return mutable.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) -> CMFormatDescription? in
+            let typed = raw.bindMemory(to: UInt8.self)
+            let buffer = UnsafeMutableBufferPointer(start: typed.baseAddress, count: typed.count)
+            // The parser attaches the ST 2086 / CLL payloads itself here, so there is no need to
+            // rebuild the description with extra extensions afterwards.
+            return try? CMVideoFormatDescriptionCreateFromAV1SequenceHeaderOBUWithAV1C(
+                buffer,
+                masteringDisplayColorVolume: mdcv,
+                contentLightLevelInfo: clli
+            )
+        }
+    }
+}
