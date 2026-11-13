@@ -126,6 +126,8 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     private var uniqueId: String
 
     private var opQueue = OperationQueue()
+    /// UUIDs of the PCs whose app list is being fetched right now.
+    @Published private(set) var appListRefreshesInFlight = Set<String>()
     private var currentlyPairingHost: TemporaryHost?
     private var reportsPairingErrors = false
 
@@ -657,9 +659,28 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
     func refreshAppsFor(host: TemporaryHost) {
         print("refreshAppsFor - Refreshing apps for host: \(host.name)")
+        guard !appListRefreshesInFlight.contains(host.uuid) else {
+            print("refreshAppsFor - A refresh for \(host.name) is already running. Skipping.")
+            return
+        }
+        appListRefreshesInFlight.insert(host.uuid)
         discoveryManager?.pauseDiscovery(for: host)
-        let appListResponse = ConnectionHelper.getAppList(for: host)
-        discoveryManager?.resumeDiscovery(for: host)
+
+        // The request retries up to five times and can take many seconds, so it runs
+        // on a background queue. Everything that touches the host, its list or the
+        // database happens back on the main thread in applyAppListResponse.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let appListResponse = ConnectionHelper.getAppList(for: host)
+            DispatchQueue.main.async {
+                self.appListRefreshesInFlight.remove(host.uuid)
+                self.discoveryManager?.resumeDiscovery(for: host)
+                self.applyAppListResponse(appListResponse, to: host)
+            }
+        }
+    }
+
+    /// Main thread. Merges a finished app-list request into the host.
+    private func applyAppListResponse(_ appListResponse: AppListResponse?, to host: TemporaryHost) {
         if appListResponse?.isStatusOk() == true {
             let serverApps = (appListResponse!.getAppList() as! Set<TemporaryApp>)
             print("refreshAppsFor - Received \(serverApps.count) apps from server.")
@@ -702,7 +723,9 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
         } else {
             print("refreshAppsFor - Failed to retrieve app list for host: \(host.name). Status: \(appListResponse?.statusMessage ?? "Unknown error")")
-            host.state = .offline
+            if !activelyStreaming {
+                host.state = .offline
+            }
         }
     }
 

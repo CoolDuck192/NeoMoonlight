@@ -90,6 +90,13 @@ struct AppsView: View {
         }
     }
     
+    private var appCountText: String {
+        if viewModel.appListRefreshesInFlight.contains(host.uuid) && host.appList.isEmpty {
+            return "Loading apps..."
+        }
+        return "\(host.appList.count) app\(host.appList.count == 1 ? "" : "s") available"
+    }
+
     private var headerCard: some View {
         HStack(spacing: 20) {
             Button {
@@ -131,7 +138,7 @@ struct AppsView: View {
                     Circle()
                         .fill(.green)
                         .frame(width: 8, height: 8)
-                    Text("\(host.appList.count) app\(host.appList.count == 1 ? "" : "s") available")
+                    Text(appCountText)
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                 }
