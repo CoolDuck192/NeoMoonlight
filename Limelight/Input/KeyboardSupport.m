@@ -91,6 +91,16 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
 + (BOOL)sendKeyEvent:(UIKey*)key down:(BOOL)down API_AVAILABLE(ios(13.4)) {
     char modifierFlags = 0;
     short keyCode = 0;
+
+    // What the Command key sends. 0 = Windows key (default), 1 = Ctrl,
+    // 2 = Ctrl, and the Control key sends the Windows key instead.
+    // visionOS only: Settings > Additional Options > "Command Key on Hardware Keyboard".
+    NSInteger commandKeyMode = 0;
+#if TARGET_OS_VISION
+    commandKeyMode = [[NSUserDefaults standardUserDefaults] integerForKey:@"keyboard.commandKeyMode"];
+#endif
+    BOOL commandIsCtrl = (commandKeyMode == 1 || commandKeyMode == 2);
+    BOOL controlIsWin = (commandKeyMode == 2);
     
     if (key.modifierFlags & UIKeyModifierShift) {
         modifierFlags |= MODIFIER_SHIFT;
@@ -99,10 +109,10 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
         modifierFlags |= MODIFIER_ALT;
     }
     if (key.modifierFlags & UIKeyModifierControl) {
-        modifierFlags |= MODIFIER_CTRL;
+        modifierFlags |= controlIsWin ? MODIFIER_META : MODIFIER_CTRL;
     }
     if (key.modifierFlags & UIKeyModifierCommand) {
-        modifierFlags |= MODIFIER_META;
+        modifierFlags |= commandIsCtrl ? MODIFIER_CTRL : MODIFIER_META;
     }
     
     // This converts UIKeyboardHIDUsage values to Win32 VK_* values
@@ -269,10 +279,10 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
                 keyCode = 0xF8;
                 break;
             case UIKeyboardHIDUsageKeyboardLeftGUI:
-                keyCode = 0x5B;
+                keyCode = commandIsCtrl ? 0xA2 : 0x5B;
                 break;
             case UIKeyboardHIDUsageKeyboardLeftControl:
-                keyCode = 0xA2;
+                keyCode = controlIsWin ? 0x5B : 0xA2;
                 break;
             case UIKeyboardHIDUsageKeyboardLeftShift:
                 keyCode = 0xA0;
@@ -281,10 +291,10 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
                 keyCode = 0xA4;
                 break;
             case UIKeyboardHIDUsageKeyboardRightGUI:
-                keyCode = 0x5C;
+                keyCode = commandIsCtrl ? 0xA3 : 0x5C;
                 break;
             case UIKeyboardHIDUsageKeyboardRightControl:
-                keyCode = 0xA3;
+                keyCode = controlIsWin ? 0x5C : 0xA3;
                 break;
             case UIKeyboardHIDUsageKeyboardRightShift:
                 keyCode = 0xA1;

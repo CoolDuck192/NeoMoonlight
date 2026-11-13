@@ -672,6 +672,8 @@ struct SettingsView: View {
                     
                     FlatHardwareKeysSettingRow()
 
+                    CommandKeySettingRow()
+
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Swap A/B and X/Y Buttons", isOn: $settings.swapABXYButtons)
                         
