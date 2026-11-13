@@ -1262,6 +1262,12 @@ struct _CurvedDisplayStreamView: View {
             }
         }
     }
+
+    /// Launch and reset scale for the current picture shape. Exactly CurvedFirstLaunch.defaultScale (1.62)
+    /// for 16:9 and taller, or when the Ultrawide Screen Size switch is off.
+    private var defaultScreenScale: Float {
+        CurvedFirstLaunch.defaultScale * UltrawideLayout.widthFactor(aspect: screenAspect, enabled: UltrawideLayout.isEnabled)
+    }
     
     @State private var correctedResolution: (Int, Int)? = nil
     
@@ -1419,6 +1425,9 @@ struct _CurvedDisplayStreamView: View {
                 handleActiveStreaming(oldValue: oldValue, newValue: newValue)
             }
             .onChange(of: videoMode) { _, _ in updateScreenMaterial() }
+            .onChange(of: screenAspect) { oldAspect, newAspect in
+                followDefaultScaleAcrossAspectChange(from: oldAspect, to: newAspect)
+            }
         
         let interactivityChangesApplied = dimChangesApplied
             .onChange(of: showMenuPanel) { _, _ in updateScreenInteractivity() }
@@ -2539,8 +2548,8 @@ struct _CurvedDisplayStreamView: View {
         screenAdjustBaselineYaw = 0
         startDragPosition = nil
         
-        screenScale = CurvedFirstLaunch.defaultScale
-        targetScale = CurvedFirstLaunch.defaultScale
+        screenScale = defaultScreenScale
+        targetScale = defaultScreenScale
         
         // Same deferred head placement as first install / leaving Head Follow — not sync placement during long-press.
         screenPosition = CurvedFirstLaunch.placeholderPosition
@@ -5538,8 +5547,8 @@ struct _CurvedDisplayStreamView: View {
                     if let head = self.headStorage.headAnchor {
                         self.placeScreenAtFirstInstallPosition(head: head)
                         if !self.hasCurvedSavedScale() {
-                            self.screenScale = CurvedFirstLaunch.defaultScale
-                            self.targetScale = CurvedFirstLaunch.defaultScale
+                            self.screenScale = self.defaultScreenScale
+                            self.targetScale = self.defaultScreenScale
                         }
                     }
                     if saveAfter {
@@ -6943,18 +6952,32 @@ struct _CurvedDisplayStreamView: View {
     private func applyFirstLaunchDefaultsToState(scheduleHeadPlacement: Bool) {
         stopPresetAnchorMonitoring()
         screenPosition = CurvedFirstLaunch.placeholderPosition
-        if !hasCurvedSavedScale() {
-            screenScale = CurvedFirstLaunch.defaultScale
-            targetScale = CurvedFirstLaunch.defaultScale
+        let sessionDefault = defaultScreenScale
+        if !hasCurvedSavedScale() || sessionDefault != CurvedFirstLaunch.defaultScale {
+            screenScale = sessionDefault
+            targetScale = sessionDefault
         }
         headStorage.pendingFirstLaunchHeadPlacement = scheduleHeadPlacement
     }
 
     /// Default scale and placement used when leaving the app in Head Follow (matches first install).
     private func applyDefaultLaunchPlacement() {
-        screenScale = CurvedFirstLaunch.defaultScale
-        targetScale = CurvedFirstLaunch.defaultScale
+        screenScale = defaultScreenScale
+        targetScale = defaultScreenScale
         applyFirstLaunchDefaultsToState(scheduleHeadPlacement: true)
+    }
+
+    /// If the screen is still at the default size for the old picture shape, move it to the default for the
+    /// new one (the decoder reported a different resolution, or SBS was toggled on a 32:9 stream). A size set
+    /// by pinch or by a preset is left alone. For 16:9 both defaults are equal, so nothing happens.
+    private func followDefaultScaleAcrossAspectChange(from oldAspect: Float, to newAspect: Float) {
+        guard !isLocked else { return }
+        let enabled = UltrawideLayout.isEnabled
+        let oldDefault = CurvedFirstLaunch.defaultScale * UltrawideLayout.widthFactor(aspect: oldAspect, enabled: enabled)
+        let newDefault = CurvedFirstLaunch.defaultScale * UltrawideLayout.widthFactor(aspect: newAspect, enabled: enabled)
+        guard oldDefault != newDefault, abs(screenScale - oldDefault) < 0.01 else { return }
+        screenScale = newDefault
+        targetScale = newDefault
     }
 
     private func flatHeadForward(_ head: AnchorEntity) -> SIMD3<Float> {
@@ -7443,8 +7466,8 @@ struct _CurvedDisplayStreamView: View {
             showHeadFollowIntro = false
             clearHeadFollowSpringState()
             detachScreenFromHeadFollow()
-            screenScale = CurvedFirstLaunch.defaultScale
-            targetScale = CurvedFirstLaunch.defaultScale
+            screenScale = defaultScreenScale
+            targetScale = defaultScreenScale
             if let head = headStorage.headAnchor {
                 resetScreenToDefaultPosition(head: head)
             }
