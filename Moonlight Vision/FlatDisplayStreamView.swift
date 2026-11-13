@@ -2465,6 +2465,12 @@ struct _FlatDisplayStreamView: View {
         performCompleteTeardown()
         viewModel.activelyStreaming = false  // CRITICAL FIX: Match CurvedDisplay behavior
         viewModel.shouldCloseStream = false
+        // Bring the main menu back when a Flat stream ends on its own (the PC ended
+        // the session, the connection dropped, or the start failed). Co-op has its own
+        // leave flow that already opens the menu, and a display-mode switch must not.
+        if !isMenuOpen && !viewModel.isCoopSession && !viewModel.isSwappingRenderers {
+            openWindow(id: "mainView")
+        }
         dismissWindow(id: "flatDisplayWindow")
     }
     
