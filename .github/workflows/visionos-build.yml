@@ -9,7 +9,7 @@ name: visionOS build
 
 on:
   push:
-    branches: [self-build]
+    branches: [self-build, 'port/**', 'xcode27**']
   pull_request:
   workflow_dispatch:
 
@@ -30,15 +30,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Xcode 26.6 (visionOS 26.5 SDK)
-            id: xcode26
+          - name: Xcode 26.6 Release (visionOS 26.5 SDK)
+            id: xcode26-release
             runner: macos-26
             xcode: /Applications/Xcode_26.6.app
+            configuration: Release
             experimental: false
-          - name: Xcode 27.2 (visionOS 27.2 SDK)
-            id: xcode27
+          - name: Xcode 26.6 Debug (visionOS 26.5 SDK)
+            id: xcode26-debug
+            runner: macos-26
+            xcode: /Applications/Xcode_26.6.app
+            configuration: Debug
+            experimental: false
+          - name: Xcode 27.2 Debug (visionOS 27.2 SDK)
+            id: xcode27-debug
             runner: xcode-27
             xcode: /Applications/Xcode_27.2.app
+            configuration: Debug
             experimental: true
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +67,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project Moonlight.xcodeproj -scheme "Moonlight XrOS" \
-            -configuration Debug \
+            -configuration "${{ matrix.configuration }}" \
             -destination 'generic/platform=visionOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
