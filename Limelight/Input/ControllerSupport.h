@@ -73,4 +73,10 @@
 /// Sends a neutral gamepad packet (releases buttons/sticks) without re-enabling sync.
 - (void) releaseHeldInputsToHost;
 
+/// visionOS only: forward GCMouse scroll-wheel axes to the host. Default NO. Only the Curved view sets it;
+/// Flat and Classic already scroll through UIKit recognisers and would send twice.
+@property (nonatomic) BOOL forwardsGCMouseScroll;
+/// Multiplier for forwarded GCMouse scroll. Negative reverses direction. 0 (the default) is treated as 1.
+@property (nonatomic) float gcMouseScrollScale;
+
 @end

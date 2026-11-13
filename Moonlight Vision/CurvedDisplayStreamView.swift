@@ -3030,6 +3030,7 @@ struct _CurvedDisplayStreamView: View {
     }
 
     private func syncCurvedGamepadSession() {
+        controllerSupport?.forwardsGCMouseScroll = true
         streamGamepadSession.displayStyle = .curved
         streamGamepadSession.setStreamActive(viewModel.activelyStreaming)
         streamGamepadSession.setControllerModeActive(inputMode == .controller)

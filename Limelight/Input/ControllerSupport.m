@@ -2023,7 +2023,7 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
         auxButton.pressedChangedHandler = nil;
     }
     
-#if TARGET_OS_TV
+#if TARGET_OS_TV || (defined(TARGET_OS_VISION) && TARGET_OS_VISION)
     mouse.mouseInput.scroll.xAxis.valueChangedHandler = nil;
     mouse.mouseInput.scroll.yAxis.valueChangedHandler = nil;
 #endif
@@ -2102,6 +2102,34 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
             LiSendHighResScrollEvent(truncatedScrollY * 20);
             
             self->accumulatedScrollY -= truncatedScrollY;
+        }
+    };
+#elif defined(TARGET_OS_VISION) && TARGET_OS_VISION
+    // visionOS: Flat and Classic scroll through UIKit on their window. Curved is an ImmersiveSpace with no
+    // such view, so it opts in to GCMouse scroll through forwardsGCMouseScroll.
+    mouse.mouseInput.scroll.xAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
+        float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
+        float pending = strongSelf->accumulatedScrollX + value * 20.0f * scale;
+        pending = fminf(fmaxf(pending, -32767.0f), 32767.0f);
+        short units = (short)pending;
+        strongSelf->accumulatedScrollX = pending - (float)units;
+        if (units != 0) {
+            // Direction is reversed from vertical scrolling, as in the tvOS path above
+            LiSendHighResHScrollEvent((short)-units);
+        }
+    };
+    mouse.mouseInput.scroll.yAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
+        float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
+        float pending = strongSelf->accumulatedScrollY + value * 20.0f * scale;
+        pending = fminf(fmaxf(pending, -32767.0f), 32767.0f);
+        short units = (short)pending;
+        strongSelf->accumulatedScrollY = pending - (float)units;
+        if (units != 0) {
+            LiSendHighResScrollEvent(units);
         }
     };
 #endif
