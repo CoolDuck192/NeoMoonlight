@@ -6970,8 +6970,10 @@ struct _CurvedDisplayStreamView: View {
     }
 
     /// If the screen is still at the default size for the old picture shape, move it to the default for the
-    /// new one (the decoder reported a different resolution, or SBS was toggled on a 32:9 stream). A size set
-    /// by pinch or by a preset is left alone. For 16:9 both defaults are equal, so nothing happens.
+    /// new one (the decoder reported a different resolution, or SBS was toggled on a 32:9 stream). "Still at
+    /// the default" is judged by the size alone (within 0.01), not by how it was reached: a pinch or preset
+    /// that leaves the screen at any other size is left alone, but one whose size equals the old default
+    /// (for example a preset saved at 1.62) follows too. For 16:9 both defaults are equal, so nothing happens.
     private func followDefaultScaleAcrossAspectChange(from oldAspect: Float, to newAspect: Float) {
         guard !isLocked else { return }
         let enabled = UltrawideLayout.isEnabled
