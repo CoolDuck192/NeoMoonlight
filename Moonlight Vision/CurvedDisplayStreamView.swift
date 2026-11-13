@@ -1629,6 +1629,8 @@ struct _CurvedDisplayStreamView: View {
                 if showVirtualKeyboard && inputMode != .screenMove {
                     TextField("", text: $keyboardInput)
                         .focused($isKeyboardFocused)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
                         .font(.system(size: 11))
                         .foregroundColor(.white)
                         .textFieldStyle(.plain)
