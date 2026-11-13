@@ -1348,6 +1348,15 @@ class Reference<T: AnyObject> {
 
 // MARK: - Aspect Ratio Lock
 
+/// Remembers the last window and stream shape a size was requested for. Main queue only (every caller is on it).
+private enum AspectLockMemory {
+    static weak var window: UIWindow?
+    static var aspect: CGFloat = 0
+    static var firstRequestUptime: TimeInterval = 0
+    /// Repeated requests are forwarded unchanged for this long after the first one (start-up burst).
+    static let startupGraceSeconds: TimeInterval = 3.0
+}
+
 func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow: UIWindow?) {
     guard let window = targetWindow else {
         print("Error: No target window provided to apply aspect ratio lock.")
@@ -1357,6 +1366,17 @@ func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow
     let streamWidth = CGFloat(streamConfiguration.width)
     let streamHeight = CGFloat(streamConfiguration.height)
     let streamAspectRatio = streamWidth / streamHeight
+    let sameTarget = AspectLockMemory.window === window
+        && abs(AspectLockMemory.aspect - streamAspectRatio) < 0.001
+    if sameTarget,
+       ProcessInfo.processInfo.systemUptime - AspectLockMemory.firstRequestUptime > AspectLockMemory.startupGraceSeconds {
+        // Start-up is over. If the window still has the stream's shape, the earlier request took effect and any
+        // difference in size is the user's own resize: keep it. Otherwise fall through and re-send, as before.
+        let current = window.bounds.size
+        if current.height > 0, abs((current.width / current.height) / streamAspectRatio - 1) < 0.02 {
+            return
+        }
+    }
     
     print("[ClassicDisplay] Applying Aspect Ratio Lock - Stream: \(Int(streamWidth))x\(Int(streamHeight)), AR: \(String(format: "%.3f", streamAspectRatio))")
     
@@ -1387,6 +1407,12 @@ func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow
         return
     }
     #endif
+
+    if !sameTarget {
+        AspectLockMemory.window = window
+        AspectLockMemory.aspect = streamAspectRatio
+        AspectLockMemory.firstRequestUptime = ProcessInfo.processInfo.systemUptime
+    }
     
     let geometryRequest = UIWindowScene.GeometryPreferences.Vision(
         size: desiredSize,
