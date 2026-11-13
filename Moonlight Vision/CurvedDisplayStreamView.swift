@@ -3059,7 +3059,7 @@ struct _CurvedDisplayStreamView: View {
                 streamConfig: streamConfig,
                 headStorage: headStorage
             )
-            .frame(width: 1920, height: 1920 / CGFloat(screenAspect))
+            .frame(width: 1920, height: 1920 * CGFloat(screenAspect))
             .opacity(0.01)
             .allowsHitTesting(showVirtualKeyboard || inputMode == .controller)
         } else {
