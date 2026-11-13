@@ -5,7 +5,7 @@ name: visionOS build
 #
 # Two toolchains are built:
 #   - Xcode 26.6 (visionOS 26.5 SDK): the toolchain the project was last built with.
-#   - Xcode 27.2 (visionOS 27.2 SDK): the current toolchain. Allowed to fail for now.
+#   - Xcode 27.2 (visionOS 27.2 SDK): the current toolchain.
 
 on:
   push:
@@ -47,7 +47,13 @@ jobs:
             runner: xcode-27
             xcode: /Applications/Xcode_27.2.app
             configuration: Debug
-            experimental: true
+            experimental: false
+          - name: Xcode 27.2 Release (visionOS 27.2 SDK)
+            id: xcode27-release
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.2.app
+            configuration: Release
+            experimental: false
     steps:
       - uses: actions/checkout@v4
 

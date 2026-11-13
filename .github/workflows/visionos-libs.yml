@@ -39,7 +39,7 @@ jobs:
           OUT_DIR="$RUNNER_TEMP/libs" WORK_DIR="$RUNNER_TEMP/work" BuildScripts/build-visionos-libs.sh
 
       - name: Upload build logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: visionos-libs-logs
