@@ -561,7 +561,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             Log(LOG_I, @"Constructing new AV1 format description");
 #if TARGET_OS_VISION
             // No FFmpeg in the Vision Pro target: the Swift parser (AV1Parser.swift) builds the
-            // description, with the same colour tags the FFmpeg code gives on iOS and tvOS.
+            // description. For the colour codes Sunshine sends (Rec.601, Rec.709, Rec.2020 SDR/PQ)
+            // the colour tags match what the FFmpeg code gives on iOS and tvOS. Other or
+            // unspecified codes are tagged Rec.709 here, where the FFmpeg code leaves them untagged.
             // The bridge returns an unretained reference, so retain it before storing it.
             CMVideoFormatDescriptionRef swiftDesc =
                 [AV1FormatDescriptionBridge formatDescriptionFromIDRFrame:fullFrameData

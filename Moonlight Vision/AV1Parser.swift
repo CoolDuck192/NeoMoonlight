@@ -248,8 +248,11 @@ fileprivate func findSequenceHeaderOBURange(in data: UnsafeMutableBufferPointer<
         if obuHasSize == 1 {
             let (val, len) = readUnsignedLEB128(bytes: bytes, index: offset)
             if len == 0 { break }
-            payloadSize = Int(val)
             offset += len
+            // The size comes from the network and can be larger than Int.max. Reject anything
+            // that runs past the buffer before converting, so nothing below can trap.
+            guard val <= UInt64(bytes.count - offset) else { break }
+            payloadSize = Int(val)
         } else {
             var nextHeader: Int? = nil
             var scan = offset
@@ -388,6 +391,7 @@ fileprivate func parseSequenceHeaderForAv1CAndDimensions(_ payload: UnsafeMutabl
     var seq_tier_0 = 0
     var initial_display_delay_present_flag = 0
     var decoder_model_info_present_flag = 0
+    var buffer_delay_length_minus_1 = 0
 
     var initial_display_delay_present_for_this_op: [Int] = []
     var initial_display_delay_minus_1: [Int] = []
@@ -405,7 +409,7 @@ fileprivate func parseSequenceHeaderForAv1CAndDimensions(_ payload: UnsafeMutabl
             }
             decoder_model_info_present_flag = br.readBit()
             if decoder_model_info_present_flag == 1 {
-                _ = br.readBits(5)
+                buffer_delay_length_minus_1 = Int(br.readBits(5))
                 _ = br.readBits(32)
                 _ = br.readBits(5)
                 _ = br.readBits(5)
@@ -436,6 +440,12 @@ fileprivate func parseSequenceHeaderForAv1CAndDimensions(_ payload: UnsafeMutabl
             if (decoder_model_info_present_flag != 0) {
                 decoder_model_present_for_this_op.append(br.readBit())
                 if (decoder_model_present_for_this_op[opIndex] != 0) {
+                    // operating_parameters_info(): decoder_buffer_delay, encoder_buffer_delay,
+                    // low_delay_mode_flag. Skipping them keeps the fields after this aligned.
+                    let n = buffer_delay_length_minus_1 + 1
+                    _ = br.readBits(n)
+                    _ = br.readBits(n)
+                    _ = br.readBit()
                 }
             } else {
                 decoder_model_present_for_this_op.append(0)
