@@ -26,15 +26,49 @@ struct OpenMoonlightApp: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        app.setHost(host)
-        let config = MainViewModel.shared.stream(app: app)
-        let activity = NSUserActivity(activityType: "dummy")
-//        activity.userInfo = ["some key": config!]
-        activity.targetContentIdentifier = "dummy" // IMPORTANT
-        try! activity.setTypedPayload(config!)
-        MainViewModel.shared.streamSettings.renderer = self.renderer
+        let viewModel = MainViewModel.shared
+
+        // Never disturb a stream that is already running or starting.
+        guard !viewModel.activelyStreaming,
+              viewModel.streamState == .idle || viewModel.streamState == .stopping else {
+            print("[Shortcut] A stream is already active. Not starting another one.")
+            return .result()
+        }
+        if viewModel.streamState == .stopping {
+            await viewModel.waitForTeardown()
+        }
+
+        // Prefer the PC object the menu uses (it has a working address); fall back to
+        // the copy Shortcuts loaded from the database and give it an address.
+        if viewModel.hosts.isEmpty {
+            viewModel.loadSavedHosts()
+        }
+        let wantedUUID = host.uuid
+        let liveHost = viewModel.hosts.first(where: { $0.uuid == wantedUUID }) ?? host
+        if liveHost.activeAddress == nil {
+            liveHost.activeAddress = liveHost.localAddress ?? liveHost.externalAddress ?? liveHost.address ?? liveHost.ipv6Address
+        }
+        app.setHost(liveHost)
+
+        viewModel.streamSettings.renderer = self.renderer
         // Persist renderer selection so App Intent launches don't revert on reboot
-        MainViewModel.shared.streamSettings.save()
+        viewModel.streamSettings.save()
+
+        viewModel.prepareForNewStream()
+        guard let config = viewModel.stream(app: app) else {
+            print("[Shortcut] Could not prepare the stream (not ready, or the PC has no known address).")
+            return .result()
+        }
+
+        let activity = NSUserActivity(activityType: "dummy")
+        activity.targetContentIdentifier = "dummy" // IMPORTANT
+        do {
+            try activity.setTypedPayload(config)
+        } catch {
+            print("[Shortcut] Could not hand the stream over to the app window: \(error)")
+            viewModel.abortStreamStart()
+            return .result()
+        }
         UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil)
         print("perform intent")
         return .result()

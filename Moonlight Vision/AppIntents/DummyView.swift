@@ -17,7 +17,12 @@ struct DummyView: View {
     var body: some View {
         ProgressView()
             .onContinueUserActivity("dummy") { acc in
-                let config = try! acc.typedPayload(StreamConfiguration.self)
+                guard let config = try? acc.typedPayload(StreamConfiguration.self) else {
+                    print("DUMMY could not read the stream configuration")
+                    viewModel.abortStreamStart()
+                    dismiss()
+                    return
+                }
                 print("DUMMY GOT EVENT \(String(describing: config))")
                 //DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 openWindow(id: viewModel.streamSettings.renderer.windowId, value: config)

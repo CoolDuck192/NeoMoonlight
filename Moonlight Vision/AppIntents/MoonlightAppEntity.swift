@@ -38,7 +38,7 @@ public struct MoonlightAppQuery: EntityQuery {
     public init() {}
     
     public func entities(for identifiers: [String]) async throws -> [TemporaryApp] {
-        [TemporaryApp](intent?.host.appList ?? [])
+        [TemporaryApp](intent?.host.appList ?? []).filter { identifiers.contains($0.id) }
     }
     
     public func entities(matching string: String) async throws -> [TemporaryApp] {
