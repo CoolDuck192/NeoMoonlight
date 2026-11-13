@@ -1,0 +1,84 @@
+name: visionOS build
+
+# Compile check for the Vision Pro target. No signing and no device: it only proves
+# that the "Moonlight XrOS" scheme still compiles and links.
+#
+# Two toolchains are built:
+#   - Xcode 26.6 (visionOS 26.5 SDK): the toolchain the project was last built with.
+#   - Xcode 27.2 (visionOS 27.2 SDK): the current toolchain. Allowed to fail for now.
+
+on:
+  push:
+    branches: [self-build]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visionos-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Xcode 26.6 (visionOS 26.5 SDK)
+            id: xcode26
+            runner: macos-26
+            xcode: /Applications/Xcode_26.6.app
+            experimental: false
+          - name: Xcode 27.2 (visionOS 27.2 SDK)
+            id: xcode27
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.2.app
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "${{ matrix.xcode }}"
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i xr || true
+
+      # The Metal toolchain is a separate download on recent Xcode releases.
+      - name: Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain || echo "::warning::Metal toolchain download failed or was not needed"
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project Moonlight.xcodeproj -scheme "Moonlight XrOS" \
+            -configuration Debug \
+            -destination 'generic/platform=visionOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > xcodebuild.log 2>&1
+
+      - name: Error summary
+        if: always()
+        run: |
+          echo "---- errors ----"
+          grep -E "error:|ld: |Undefined symbols|\*\* BUILD" xcodebuild.log | sort -u | head -150 || true
+          echo "---- warning count ----"
+          grep -c "warning:" xcodebuild.log || true
+          echo "---- tail ----"
+          tail -30 xcodebuild.log || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log-${{ matrix.id }}
+          path: xcodebuild.log
+          if-no-files-found: ignore
