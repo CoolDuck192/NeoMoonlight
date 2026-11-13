@@ -23,6 +23,9 @@ struct AppsView: View {
     
     @State private var firstFrameObserver: NSObjectProtocol?
     @State private var firstFrameFallback: DispatchWorkItem?
+
+    @State private var runningAppPrompt: RunningAppPrompt?
+    @State private var quitFailedMessage: String?
     
     @Binding
     public var host: TemporaryHost
@@ -55,6 +58,35 @@ struct AppsView: View {
                 print("LOAD")
                 viewModel.refreshAppsFor(host: host)
             }
+        }
+        .alert(
+            "Another App Is Running",
+            isPresented: Binding(
+                get: { runningAppPrompt != nil },
+                set: { if !$0 { runningAppPrompt = nil } }
+            ),
+            presenting: runningAppPrompt
+        ) { prompt in
+            Button(prompt.resumeTitle) {
+                handleAppSelection(app: prompt.running, skipRunningAppCheck: true)
+            }
+            Button(prompt.quitAndStartTitle, role: .destructive) {
+                quitThenLaunch(prompt)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { prompt in
+            Text("\(prompt.runningName) is still running on \(host.name). Starting \(prompt.requestedName) now would only bring \(prompt.runningName) back.")
+        }
+        .alert(
+            "Could Not Quit App",
+            isPresented: Binding(
+                get: { quitFailedMessage != nil },
+                set: { if !$0 { quitFailedMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(quitFailedMessage ?? "")
         }
     }
     
@@ -135,8 +167,16 @@ struct AppsView: View {
         .padding(.top, 16)
     }
     
-    private func handleAppSelection(app: TemporaryApp) {
+    private func handleAppSelection(app: TemporaryApp, skipRunningAppCheck: Bool = false) {
         if nowLoading != nil { return }
+
+        // If the PC is still running a different app, starting this one would only
+        // bring the other app back. Ask what to do instead of doing that silently.
+        if !skipRunningAppCheck, !viewModel.activelyStreaming,
+           let running = differentRunningApp(than: app) {
+            runningAppPrompt = RunningAppPrompt(requested: app, running: running, requestedName: app.name, runningName: running.name)
+            return
+        }
         nowLoading = app.id ?? app.name
         
         // CRITICAL FIX: Safety timeout to prevent nowLoading from getting stuck
@@ -291,13 +331,50 @@ struct AppsView: View {
     }
     
     private func handleQuit(app: TemporaryApp) {
-        let httpManager = HttpManager(host: app.host())
-        let httpResponse = HttpResponse()
-        let quitRequest = HttpRequest(for: httpResponse, with: httpManager?.newQuitAppRequest())
+        let target = app.host() ?? host
         Task {
-            httpManager?.executeRequestSynchronously(quitRequest)
+            let ok = await viewModel.quitRunningApp(on: target)
+            print("[AppsView] Quit request for \(app.name) finished. Confirmed by PC: \(ok)")
+            if !ok {
+                quitFailedMessage = "\(target.name) did not confirm that \(app.name) was closed. Try again, or close it on the PC."
+            }
         }
     }
+
+    /// The app the PC reports as still running, when it is not the one being
+    /// launched and it is in this PC's app list.
+    private func differentRunningApp(than app: TemporaryApp) -> TemporaryApp? {
+        guard let running = host.currentGame, !running.isEmpty, running != "0", running != app.id else {
+            return nil
+        }
+        return host.appList.first(where: { $0.id == running })
+    }
+
+    private func quitThenLaunch(_ prompt: RunningAppPrompt) {
+        viewModel.stopRefresh()
+        nowLoading = prompt.requested.id
+        Task {
+            let ok = await viewModel.quitRunningApp(on: host)
+            nowLoading = nil
+            if ok {
+                handleAppSelection(app: prompt.requested, skipRunningAppCheck: true)
+            } else {
+                quitFailedMessage = "\(host.name) did not confirm that \(prompt.runningName) was closed. Close it on the PC, or choose Resume instead."
+            }
+        }
+    }
+}
+
+/// Shown when the user launches one app while the PC is still running another.
+/// Names are copied as plain text so nothing here touches main-actor objects.
+private struct RunningAppPrompt {
+    let requested: TemporaryApp
+    let running: TemporaryApp
+    let requestedName: String
+    let runningName: String
+
+    var resumeTitle: String { "Resume \(runningName)" }
+    var quitAndStartTitle: String { "Quit It and Start \(requestedName)" }
 }
 
 // Extract Scroll List to smaller view for type-check performance
@@ -564,7 +641,7 @@ struct AppCard: View {
                 Button {
                     onQuit()
                 } label: {
-                    Label("Stop", systemImage: "stop.circle")
+                    Label("Quit App", systemImage: "stop.circle")
                 }
             }
         }

@@ -273,6 +273,15 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
             // FIXED: Clear cooldown immediately after successful teardown
             self.reconnectCooldownUntil = nil
             
+            // Ask the PC what is running now, so the menu shows the truth after a stream.
+            if !self.isCoopSession && !self.isSwappingRenderers {
+                Task {
+                    if let endedHost = self.currentStreamHost {
+                        await self.updateHost(host: endedHost, force: true)
+                    }
+                }
+            }
+
             // Clean up co-op session state
             // CRITICAL: endSession() is called HERE (after stream stopped) not earlier.
             // This ensures LiStopConnection() can send quit packets before SharePlay dies.
@@ -1028,6 +1037,22 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         Task {
             await cleanupAudioSession()
         }
+    }
+
+    /// Asks the PC to close whatever app it is running. The request is built and run
+    /// off the main thread. Returns true when the PC confirmed.
+    func quitRunningApp(on host: TemporaryHost) async -> Bool {
+        let ok = await Task.detached { () -> Bool in
+            let httpManager = HttpManager(host: host)
+            let httpResponse = HttpResponse()
+            let quitRequest = HttpRequest(for: httpResponse, with: httpManager?.newQuitAppRequest())
+            httpManager?.executeRequestSynchronously(quitRequest)
+            return httpResponse.isStatusOk()
+        }.value
+        if ok {
+            host.currentGame = "0"
+        }
+        return ok
     }
 
     private func cleanupAudioSession() async {
