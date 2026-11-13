@@ -1652,10 +1652,8 @@ struct _CurvedDisplayStreamView: View {
                             // When user hits return, send Return key to PC, then close keyboard
                             print("[Keyboard] Submit detected, sending Return key and closing keyboard")
                             
-                            // Send Return key (keycode 0x0D = 13)
-                            LiSendKeyboardEvent(0x0D, 0x03, 0)  // Key down
-                            usleep(50 * 1000)
-                            LiSendKeyboardEvent(0x0D, 0x04, 0)  // Key up
+                            // Send Return key (keycode 0x0D = 13), queued behind any text still being sent
+                            SoftKeyboardSender.sendReturn()
                             
                             showVirtualKeyboard = false
                             isKeyboardFocused = false
@@ -3359,30 +3357,9 @@ struct _CurvedDisplayStreamView: View {
     }
 
     private func handleKeyboardInput(_ newValue: String) {
-        let oldValue = previousKeyboardInput
-        
-        if newValue.count > oldValue.count {
-            // Character(s) added - send the new characters
-            let newChars = String(newValue.suffix(newValue.count - oldValue.count))
-            for char in newChars {
-                let text = String(char)
-                let cString = text.cString(using: .utf8)
-                cString?.withUnsafeBufferPointer { ptr in
-                    if let base = ptr.baseAddress {
-                        LiSendUtf8TextEvent(base, UInt32(text.utf8.count))
-                    }
-                }
-            }
-        } else if newValue.count < oldValue.count {
-            // Character(s) removed - send backspace for each removed character
-            let removedCount = oldValue.count - newValue.count
-            for _ in 0..<removedCount {
-                LiSendKeyboardEvent(0x08, 0x03, 0) // Backspace Down
-                usleep(50 * 1000)
-                LiSendKeyboardEvent(0x08, 0x04, 0) // Backspace Up
-            }
-        }
-        
+        // Common-prefix diff, sent in order on SoftKeyboardSender's queue (not on the main thread).
+        SoftKeyboardSender.applyEdit(from: previousKeyboardInput, to: newValue)
+
         // Update previous value for next comparison
         previousKeyboardInput = newValue
     }
