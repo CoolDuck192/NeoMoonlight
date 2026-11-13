@@ -711,7 +711,9 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
                 for removedApp in removedApps {
                     database.remove(removedApp)
                 }
-                database.updateApps(forExisting: host)
+                // The list is not saved here: the host still holds the old list, so that
+                // would store the removed apps again and the save below would then fail
+                // (an app record may not be left without its PC).
             }
 
             if host.appList != newAppList {
