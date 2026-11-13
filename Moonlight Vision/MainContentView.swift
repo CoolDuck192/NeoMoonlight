@@ -366,7 +366,9 @@ struct MainContentView: View {
             guard !viewModel.activelyStreaming else {
                 print("MainContentView: Skipping loadSavedHosts and discovery because actively streaming")
                 // When returning to the menu while streaming, update what's running
-                if let streamingHost = viewModel.hosts.first(where: { $0.appList.contains(where: { $0.id == viewModel.currentlyStreamingAppId }) }) {
+                if let trackedHost = viewModel.currentStreamHost {
+                    self.selectedHost = trackedHost
+                } else if let streamingHost = viewModel.hosts.first(where: { $0.appList.contains(where: { $0.id == viewModel.currentlyStreamingAppId }) }) {
                     self.selectedHost = streamingHost
                 }
                 return
@@ -687,7 +689,8 @@ struct ComputersTabView: View {
     }
     
     private func handleTap(on host: TemporaryHost) {
-        if viewModel.activelyStreaming && selectedHost?.id == host.id {
+        let isStreamingThisHost = viewModel.currentStreamConfig.host == host.activeAddress
+        if viewModel.activelyStreaming && (selectedHost?.id == host.id || isStreamingThisHost) {
             viewModel.userDidRequestDisconnect()
         } else {
             if !canShowModal {

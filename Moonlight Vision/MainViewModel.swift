@@ -45,6 +45,12 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     @Published var streamSettings: TemporarySettings
     
     @Published var currentlyStreamingAppId: String? = nil
+
+    /// The PC the current (or most recent) stream was started on. Kept by UUID so it
+    /// still resolves after the host list is reloaded; the object is a fallback for a
+    /// PC that is not in the list (Shortcuts before the menu loaded, co-op).
+    private var currentStreamHostUUID: String? = nil
+    private var currentStreamHostFallback: TemporaryHost? = nil
     
     @Published var savedStreamWindowSize: CGSize? = nil
     @Published var classicWindowNeedsManualClose: Bool = false
@@ -341,6 +347,25 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         return filteredHosts
     }
     
+    var currentStreamHost: TemporaryHost? {
+        if let uuid = currentStreamHostUUID, !uuid.isEmpty,
+           let live = hosts.first(where: { $0.uuid == uuid }) {
+            return live
+        }
+        return currentStreamHostFallback
+    }
+
+    /// Which PC a Disconnect sends its quit request to.
+    /// A co-op guest streams from someone else's PC and keeps the old lookup, which
+    /// finds nothing for a guest, so a guest still never sends a quit.
+    private func hostForQuitRequest(appId: String) -> TemporaryHost? {
+        let byAppList = hosts.first(where: { $0.appList.contains(where: { $0.id == appId || $0.name == appId }) })
+        if isCoopSession && assignedControllerSlot == 1 {
+            return byAppList
+        }
+        return currentStreamHost ?? byAppList
+    }
+
     // MARK: - Host Management Logic
     
     func upsertDiscoveredHosts(_ discoveredHosts: [TemporaryHost]) {
@@ -675,6 +700,8 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         }
 
         print("stream - Preparing stream configuration for app: \(app.name) on host: \(host.name)")
+        currentStreamHostUUID = host.uuid
+        currentStreamHostFallback = host
 
         print("[Lifecycle] stream(app:) invoked. streamState -> starting")
         streamEndMessage = nil
@@ -936,7 +963,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         
         // Send quit request and wait for it to complete BEFORE triggering teardown
         if let appId = currentlyStreamingAppId,
-           let host = hosts.first(where: { $0.appList.contains(where: { $0.id == appId || $0.name == appId }) }) {
+           let host = hostForQuitRequest(appId: appId) {
             
             print("[ViewModel] ✅ Found host: \(host.name) for app: \(appId)")
             print("[ViewModel] 📡 Creating quit request to \(host.activeAddress ?? "unknown")")
