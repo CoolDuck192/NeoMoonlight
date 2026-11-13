@@ -249,8 +249,13 @@
                 keyCode = 0xA5;
                 break;
             default:
+                // Unmapped key: report "not handled" so the caller hands the press to UIKit,
+                // which turns character keys into text. On visionOS the assert used to abort
+                // Debug builds on any unmapped key. iOS and tvOS keep it exactly as before.
                 NSLog(@"Unhandled HID usage: %lu", (unsigned long)key.keyCode);
+#if !TARGET_OS_VISION
                 assert(0);
+#endif
                 return false;
         }
     }
