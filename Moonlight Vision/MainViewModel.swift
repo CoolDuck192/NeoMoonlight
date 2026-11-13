@@ -135,6 +135,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         
         // Load gaze control settings from UserDefaults (not stored in Core Data)
         streamSettings.curvedGazeUseTouchMode = UserDefaults.standard.bool(forKey: "curved.gazeUseTouchMode")
+        streamSettings.curvedAutoAim = UserDefaults.standard.bool(forKey: "curved.autoAim")  // off unless enabled in Settings
         streamSettings.gazeCursorOffsetX = UserDefaults.standard.integer(forKey: "gaze.cursorOffsetX")
         streamSettings.gazeCursorOffsetY = UserDefaults.standard.integer(forKey: "gaze.cursorOffsetY")
         streamSettings.showStreamMuteButton = UserDefaults.standard.bool(forKey: "stream.showMuteButton")
