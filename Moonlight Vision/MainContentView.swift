@@ -344,6 +344,11 @@ struct MainContentView: View {
         } message: {
             Text("Please use the Disconnect button to close the menu while streaming")
         }
+        .alert("Connection Problem", isPresented: Binding(get: { canShowModal && viewModel.streamEndMessage != nil }, set: { if !$0 { viewModel.streamEndMessage = nil } })) {
+            Button("OK", role: .cancel) { viewModel.streamEndMessage = nil }
+        } message: {
+            Text(viewModel.streamEndMessage ?? "")
+        }
         .onChange(of: scenePhase) { oldValue, newValue in
             // When mainView window closes or goes inactive, notify stream view to restore audio
             if oldValue == .active && (newValue == .inactive || newValue == .background) {

@@ -86,6 +86,10 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     /// resulting ConnectionLost notification is ignored (it's not a real disconnect).
     @Published var isSuspendingForBackground: Bool = false
     @Published var isBitrateReconnectInProgress = false
+
+    /// Plain-language reason the last stream ended or failed to start. The main menu
+    /// shows it once in an alert; nil means there is nothing to tell the user.
+    @Published var streamEndMessage: String? = nil
     
     // Co-op Session State
     @Published var isCoopSession: Bool = false
@@ -210,15 +214,23 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         // teardown arriving during a new stream's .starting phase incorrectly resets state.
         // Defer to next run loop to avoid "Modifying state during view update" when the
         // notification is delivered during a SwiftUI update.
-        center.addObserver(forName: Notification.Name("StreamStartFailed"), object: nil, queue: .main) { [weak self] _ in
-            DispatchQueue.main.async { self?.onStreamStartFailed() }
+        center.addObserver(forName: Notification.Name("StreamStartFailed"), object: nil, queue: .main) { [weak self] note in
+            let endMessage = note.userInfo?["message"] as? String
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.streamState == .starting {
+                    self.recordStreamEndMessage(endMessage)
+                }
+                self.onStreamStartFailed()
+            }
         }
         
         // ConnectionLost is posted by connectionTerminated to trigger the view's
         // teardown flow without prematurely resetting streamState. This ensures
         // shouldCloseStream is set so the view calls performCompleteTeardown,
         // which waits for LiStopConnection() to finish before posting RKStreamDidTeardown.
-        center.addObserver(forName: Notification.Name("ConnectionLost"), object: nil, queue: .main) { [weak self] _ in
+        center.addObserver(forName: Notification.Name("ConnectionLost"), object: nil, queue: .main) { [weak self] note in
+            let endMessage = note.userInfo?["message"] as? String
             DispatchQueue.main.async {
                 guard let self else { return }
                 print("[Lifecycle] ConnectionLost received.")
@@ -233,6 +245,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
                 // is already being set by beginDisconnect.
                 if self.streamState == .running || self.streamState == .starting {
                     print("[Lifecycle] Setting streamState -> stopping and shouldCloseStream for view teardown")
+                    self.recordStreamEndMessage(endMessage)
                     self.streamState = .stopping
                     self.shouldCloseStream = true
                 }
@@ -311,6 +324,14 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         }
     }
     
+    /// Remembers, in plain words, why a stream ended so the main menu can say it once.
+    /// Ignored while the app is suspending a stream for the background (that stop is deliberate).
+    func recordStreamEndMessage(_ message: String?) {
+        guard let message, !message.isEmpty else { return }
+        guard !isSuspendingForBackground else { return }
+        streamEndMessage = message
+    }
+
     var hostsWithPairState: [TemporaryHost] {
         let filteredHosts = hosts.filter { host in
             let isPaired = host.pairState == .paired
@@ -656,6 +677,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         print("stream - Preparing stream configuration for app: \(app.name) on host: \(host.name)")
 
         print("[Lifecycle] stream(app:) invoked. streamState -> starting")
+        streamEndMessage = nil
         streamState = .starting
 
         config.host = host.activeAddress ?? host.address
