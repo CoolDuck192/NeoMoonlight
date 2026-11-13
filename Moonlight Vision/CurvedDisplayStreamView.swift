@@ -1272,6 +1272,10 @@ struct _CurvedDisplayStreamView: View {
                 }
             }
             .onChange(of: scenePhase) { oldValue, newValue in
+                if newValue != .active {
+                    // Key-ups can no longer reach this scene (headset off, system UI in front, app switch).
+                    KeyboardSupport.releaseAllKeys()
+                }
                 if newValue == .background {
                     if viewModel.activelyStreaming, streamMan != nil {
                         print("Suspending stream due to background")

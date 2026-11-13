@@ -2264,6 +2264,10 @@ struct _FlatDisplayStreamView: View {
     // MARK: - Scene Lifecycle & Helpers
 
     private func handleFlatScenePhaseChange(_ newValue: ScenePhase) {
+        if newValue != .active {
+            // Key-ups can no longer reach this window (headset off, system UI in front, app switch).
+            KeyboardSupport.releaseAllKeys()
+        }
         if newValue == .background {
             if !isMenuOpen && viewModel.activelyStreaming, streamMan != nil {
                 print("Suspending stream due to background (Menu is not open)")
