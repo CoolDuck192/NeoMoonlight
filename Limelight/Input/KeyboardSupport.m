@@ -201,7 +201,12 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
                 keyCode = 0x14;
                 break;
             case UIKeyboardHIDUsageKeyboardPrintScreen:
+#if TARGET_OS_VISION
+                // VK_SNAPSHOT is the Print Screen key. 0x2A is VK_PRINT, which Windows ignores.
+                keyCode = 0x2C;
+#else
                 keyCode = 0x2A;
+#endif
                 break;
             case UIKeyboardHIDUsageKeyboardScrollLock:
                 keyCode = 0x91;
@@ -263,6 +268,12 @@ static NSMutableSet<NSNumber*>* neoKeysDown = nil;
             case UIKeyboardHIDUsageKeyboardNonUSBackslash:
                 keyCode = 0xE2;
                 break;
+#if TARGET_OS_VISION
+            case UIKeyboardHIDUsageKeyboardApplication:
+                // The context-menu key on PC keyboards (VK_APPS)
+                keyCode = 0x5D;
+                break;
+#endif
             case UIKeyboardHIDUsageKeypadComma:
                 keyCode = 0x6C;
                 break;
