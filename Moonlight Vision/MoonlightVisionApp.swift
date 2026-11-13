@@ -37,11 +37,11 @@ struct MoonlightVisionApp: SwiftUI.App {
                         splashScale = 1.0
                     }
                     
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                         splashOpacity = 0.0
                         splashScale = 1.05
                         
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                             showSplash = false
                         }
                     }
