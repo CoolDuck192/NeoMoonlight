@@ -3025,12 +3025,14 @@ struct _CurvedDisplayStreamView: View {
             || showCurvedTutorial || showMenuPanel || streamPeekThroughActive
     }
 
+    @AppStorage("curved.mouseWheelSpeed") private var curvedMouseWheelSpeed: Double = 1.0
   private var curvedGamepadSyncToken: String {
-        "\(inputMode.rawValue)|\(showHDRPanel)|\(showScreenPresetPanel)|\(show3DConfirm)|\(showSwapConfirm)|\(showDisconnectConfirm)|\(showEnvironmentPicker)|\(showDimmingPicker)|\(showDesktopActionsPicker)|\(showCurvedTutorial)|\(showMenuPanel)|\(showVirtualKeyboard)|\(viewModel.activelyStreaming)"
+        "\(inputMode.rawValue)|\(showHDRPanel)|\(showScreenPresetPanel)|\(show3DConfirm)|\(showSwapConfirm)|\(showDisconnectConfirm)|\(showEnvironmentPicker)|\(showDimmingPicker)|\(showDesktopActionsPicker)|\(showCurvedTutorial)|\(showMenuPanel)|\(showVirtualKeyboard)|\(viewModel.activelyStreaming)|\(curvedMouseWheelSpeed)"
     }
 
     private func syncCurvedGamepadSession() {
-        controllerSupport?.forwardsGCMouseScroll = true
+        controllerSupport?.forwardsGCMouseScroll = curvedMouseWheelSpeed != 0
+        controllerSupport?.gcMouseScrollScale = Float(curvedMouseWheelSpeed)
         streamGamepadSession.displayStyle = .curved
         streamGamepadSession.setStreamActive(viewModel.activelyStreaming)
         streamGamepadSession.setControllerModeActive(inputMode == .controller)

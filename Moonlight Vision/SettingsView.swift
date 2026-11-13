@@ -435,6 +435,8 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
+                    CurvedMouseWheelSettingRow()
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Pinch and Drag")
@@ -1106,6 +1108,38 @@ struct SettingRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white.opacity(0.5))
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+/// Curved Display only. Stored under "curved.mouseWheelSpeed": 0 = off, negative = reversed.
+/// Owns its storage so SettingsView and TemporarySettings need no new state.
+private struct CurvedMouseWheelSettingRow: View {
+    @AppStorage("curved.mouseWheelSpeed") private var speed: Double = 1.0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Curved Display Mouse Wheel")
+                    .foregroundColor(.white)
+                Spacer()
+                Picker("", selection: $speed) {
+                    Text("Off").tag(0.0)
+                    Text("0.5x").tag(0.5)
+                    Text("1x").tag(1.0)
+                    Text("2x").tag(2.0)
+                    Text("4x").tag(4.0)
+                    Text("Reversed 1x").tag(-1.0)
+                    Text("Reversed 2x").tag(-2.0)
+                }
+                .pickerStyle(.menu)
+            }
+
+            Text("Scroll speed of a Bluetooth or USB mouse wheel in Curved Display. Pick a Reversed option if the page moves the wrong way.")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 4)
     }
