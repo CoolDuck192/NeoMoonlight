@@ -179,7 +179,7 @@ struct InputCaptureView: UIViewRepresentable {
     }
 }
 
-class InputCaptureUIView: UIView, UIKeyInput {
+class InputCaptureUIView: StreamKeyCaptureUIView, UIKeyInput {
     var controllerSupport: ControllerSupport?
     private weak var gamepadSession: StreamGamepadSession?
     private var usesGamepadSession = false
@@ -203,6 +203,8 @@ class InputCaptureUIView: UIView, UIKeyInput {
         didSet {
             if oldValue != showVirtualKeyboard {
                 reloadInputViews()
+                // The on-screen keyboard is taking over or handing back: no hardware key may stay held on the host.
+                KeyboardSupport.releaseAllKeys()
             }
         }
     }
@@ -334,35 +336,6 @@ class InputCaptureUIView: UIView, UIKeyInput {
         LiSendKeyboardEvent(0x08, 0x03, 0)
         usleep(50 * 1000)
         LiSendKeyboardEvent(0x08, 0x04, 0)
-    }
-    
-    // Handle special keys like Return/Enter
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        var handled = false
-        
-        for press in presses {
-            if KeyboardSupport.sendKeyEvent(for: press, down: true) {
-                handled = true
-            }
-        }
-        
-        if !handled {
-            super.pressesBegan(presses, with: event)
-        }
-    }
-    
-    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        var handled = false
-        
-        for press in presses {
-            if KeyboardSupport.sendKeyEvent(for: press, down: false) {
-                handled = true
-            }
-        }
-        
-        if !handled {
-            super.pressesEnded(presses, with: event)
-        }
     }
 }
 
