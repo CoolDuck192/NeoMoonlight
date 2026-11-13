@@ -185,6 +185,7 @@ struct ComputerView: View {
         }
         .onAppear {
             print("ComputerView appearing for \(host.name). Resetting stop flag.")
+            viewModel.pairingErrorMessage = nil
             stopAutomaticStateUpdate = false
         }
         .task(id: host.id) {
@@ -304,8 +305,21 @@ struct ComputerView: View {
                     .padding(.horizontal, 32)
                     .padding(.bottom, 8)
 
+                if viewModel.pairingSetupInProgress {
+                    ProgressView("Getting ready to pair...")
+                        .tint(.white)
+                        .foregroundColor(.white.opacity(0.8))
+                } else if let pairingError = viewModel.pairingErrorMessage {
+                    Text(pairingError)
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 32)
+                }
+
                 Button {
-                    viewModel.tryPairHost(host)
+                    viewModel.startPairingFromMenu(host)
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "lock.open.fill")
@@ -382,7 +396,7 @@ struct ComputerView: View {
                  HStack(spacing: 12) {
                      Button("Start Pairing Anyway") {
                          print("User initiated pairing while pairState is unknown for \(host.name).")
-                         viewModel.tryPairHost(host)
+                         viewModel.startPairingFromMenu(host)
                      }
                      .controlSize(.regular)
 

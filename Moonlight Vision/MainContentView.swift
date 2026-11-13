@@ -583,7 +583,14 @@ struct ComputersTabView: View {
                             isSelected: selectedHost?.id == host.id,
                             onTap: { handleTap(on: host) },
                             onWake: { viewModel.wakeHost(host) },
-                            onPair: { viewModel.tryPairHost(host) },
+                            onPair: {
+                                // The PIN is shown on the PC's own screen, so open that screen
+                                // instead of starting a pairing nobody can see.
+                                if canShowModal {
+                                    selectedHost = host
+                                    selectedHostForDetail = host
+                                }
+                            },
                             onDelete: {
                                 hostToDelete = host
                                 isDeletingHost = true

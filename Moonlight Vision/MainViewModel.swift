@@ -37,6 +37,11 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     @Published var pairingInProgress = false
     @Published var currentPin = ""
 
+    /// Why the last pairing started from a PC's own screen failed (nil = nothing to show).
+    @Published var pairingErrorMessage: String? = nil
+    /// True while pairing is being prepared in the background (before the PIN appears).
+    @Published var pairingSetupInProgress = false
+
     @Published var errorAddingHost = false
     @Published var addHostErrorMessage = ""
     /// True while Add Computer is contacting the address the user typed.
@@ -122,6 +127,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
     private var opQueue = OperationQueue()
     private var currentlyPairingHost: TemporaryHost?
+    private var reportsPairingErrors = false
 
     override init() {
         print("INITING MAIN MODEL")
@@ -494,6 +500,39 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         print("trying to pair")
     }
 
+    /// Starts pairing from a PC's own screen in the menu. Unlike tryPairHost (which
+    /// co-op still uses unchanged), the wait for discovery to stop happens off the
+    /// main thread, and a failure is put into pairingErrorMessage.
+    func startPairingFromMenu(_ host: TemporaryHost) {
+        guard !pairingSetupInProgress, currentlyPairingHost == nil else {
+            print("startPairingFromMenu - A pairing attempt is already running. Ignoring.")
+            return
+        }
+        guard let manager = discoveryManager else { return }
+
+        pairingSetupInProgress = true
+        reportsPairingErrors = true
+        pairingErrorMessage = nil
+        currentlyPairingHost = host
+        let cert = clientCert
+        print("trying to pair (from menu)")
+
+        // Waiting for discovery to stop can take seconds, and a discovery worker may
+        // need the main thread to finish. Waiting on the main thread froze the menu
+        // and could hang it for good, so the wait runs on a background queue.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            manager.stopDiscoveryBlocking()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pairingSetupInProgress = false
+                guard self.currentlyPairingHost === host else { return }
+                let httpManager = HttpManager(host: host)
+                let pairManager = PairManager(manager: httpManager, clientCert: cert, callback: self)
+                self.opQueue.addOperation(pairManager!)
+            }
+        }
+    }
+
     nonisolated func startPairing(_ PIN: String!) {
         Task { @MainActor in
             pairingInProgress = true
@@ -517,6 +556,10 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
     nonisolated func pairFailed(_ message: String!) {
         Task { @MainActor in
+            if reportsPairingErrors {
+                let reason = (message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                pairingErrorMessage = reason.isEmpty ? "Pairing failed. Start pairing again and enter the new PIN on your PC." : "Pairing failed: \(reason)"
+            }
             print("pairFailed - Pairing failed for host: \(currentlyPairingHost?.name ?? "Unknown"). Reason: \(message ?? "Unknown error")")
             endPairing()
         }
@@ -541,6 +584,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
             pairingInProgress = false
             currentPin = ""
             currentlyPairingHost = nil
+            reportsPairingErrors = false
 
             discoveryManager?.startDiscovery()
             print("endPairing - Pairing process finished, discovery starting.")
@@ -697,6 +741,10 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     }
       
     @objc func beginRefresh() {
+        guard !pairingSetupInProgress else {
+            print("[Discovery] Skipping beginRefresh - pairing is being set up")
+            return
+        }
         guard !activelyStreaming else {
             print("[Discovery] Skipping beginRefresh — actively streaming")
             return
