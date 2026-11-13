@@ -66,6 +66,7 @@ build() {
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         "$@" > "$bdir.configure.log" 2>&1 || { tail -60 "$bdir.configure.log"; exit 1; }
     cmake --build "$bdir" --parallel > "$bdir.build.log" 2>&1 || { tail -80 "$bdir.build.log"; exit 1; }
 
