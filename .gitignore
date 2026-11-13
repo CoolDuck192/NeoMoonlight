@@ -7,3 +7,4 @@ Config/Signing.local.xcconfig
 Build
 DerivedData
 *.DS_Store
+BuildScripts/build-visionos/

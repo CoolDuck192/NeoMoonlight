@@ -1,0 +1,54 @@
+name: visionOS libraries
+
+# Rebuilds the Opus and SDL2 static libraries for visionOS from source and
+# uploads them as an artifact. Run it by hand when the library versions in
+# BuildScripts/build-visionos-libs.sh change, then commit the result to libs/.
+#
+# Built with the oldest Xcode the project supports so the archives link with
+# both Xcode 26 and Xcode 27.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['xcode27**']
+    paths:
+      - BuildScripts/build-visionos-libs.sh
+      - .github/workflows/visionos-libs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Opus and SDL2 for visionOS
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            BuildScripts
+          sparse-checkout-cone-mode: true
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Build libraries
+        run: |
+          chmod +x BuildScripts/build-visionos-libs.sh
+          OUT_DIR="$RUNNER_TEMP/libs" WORK_DIR="$RUNNER_TEMP/work" BuildScripts/build-visionos-libs.sh
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visionos-libs-logs
+          path: ${{ runner.temp }}/work/*.log
+          if-no-files-found: ignore
+
+      - name: Upload libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: visionos-libs
+          path: ${{ runner.temp }}/libs
+          if-no-files-found: error
