@@ -183,6 +183,7 @@ private struct MainRootView<Content: View>: View {
         vm.activeSessionToken = newToken
         vm.currentStreamConfig = config
         vm.streamState = .starting
+        vm.isReconnecting = false
         
         print("[Relaunch] Re-opening \(renderer) with new session \(newToken)")
         

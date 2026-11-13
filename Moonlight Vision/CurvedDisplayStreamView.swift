@@ -1035,6 +1035,8 @@ struct _CurvedDisplayStreamView: View {
     @State private var shouldClose = false
     @State private var hasPerformedTeardown = false
     @State private var needsResume = false
+    /// Reconnect attempts stop after this moment (set when a suspended stream is resumed).
+    @State private var reconnectDeadline: Date? = nil
     @State private var spatialAudioMode: Bool = true
     @State private var soundStageSize: SoundStageSize = .medium
     @State private var statsOverlayText: String = ""
@@ -1277,6 +1279,14 @@ struct _CurvedDisplayStreamView: View {
                     KeyboardSupport.releaseAllKeys()
                 }
                 if newValue == .background {
+                    if viewModel.isReconnecting, streamMan == nil {
+                        // Suspended between two reconnect attempts: hand over to the normal resume path.
+                        needsResume = true
+                        viewModel.isSuspendingForBackground = true
+                        controllerSupport?.cleanup()
+                        BluetoothMouseRouting.releasePointerLock()
+                        controllerSupport = nil
+                    }
                     if viewModel.activelyStreaming, streamMan != nil {
                         print("Suspending stream due to background")
                         needsResume = true
@@ -1294,6 +1304,7 @@ struct _CurvedDisplayStreamView: View {
                     }
                     if needsResume {
                         print("Resuming stream from background")
+                        beginReconnectWindow()
                         viewModel.isSuspendingForBackground = false
                         needsResume = false
                         self.renderGateOpen = true
@@ -1312,7 +1323,7 @@ struct _CurvedDisplayStreamView: View {
                         }
                     } else if viewModel.activelyStreaming {
                         // Health check: If stream should be running but isn't, restart it
-                        if streamMan == nil {
+                        if streamMan == nil && !viewModel.isReconnecting {
                             print("[CurvedDisplay] Stream died while inactive - restarting")
                             self.renderGateOpen = true
                             self.hasPerformedTeardown = false
@@ -1477,7 +1488,19 @@ struct _CurvedDisplayStreamView: View {
             .onChange(of: hdrPanelSettings.pqExposure)  { _, _ in updateHDRParamsFromPanel() }
             .onChange(of: hdrPanelSettings.referenceHDR) { _, _ in updateHDRParamsFromPanel() }
 
-        return stateChangesApplied
+        let reconnectChangesApplied = stateChangesApplied
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ReconnectAttemptFailed"))) { _ in
+                handleReconnectAttemptFailed()
+            }
+            .onChange(of: viewModel.isReconnecting) { _, reconnecting in
+                if reconnecting {
+                    showReconnectingToast()
+                } else {
+                    hideReconnectingToast()
+                }
+            }
+
+        return reconnectChangesApplied
     }
     
     // MARK: - Body Subviews
@@ -4844,8 +4867,63 @@ struct _CurvedDisplayStreamView: View {
         }
     }
 
+    // MARK: - Reconnect after the headset was taken off
+
+    /// Opens a 30-second window in which a failed resume is retried instead of ignored.
+    private func beginReconnectWindow() {
+        // Only a stream that was already showing a picture can be reconnected.
+        // A first start that fails keeps its normal error path.
+        guard viewModel.streamState == .running else { return }
+        // Co-op (SharePlay) sessions keep their existing resume behaviour.
+        guard !viewModel.isCoopSession else { return }
+        reconnectDeadline = Date().addingTimeInterval(30)
+        viewModel.isReconnecting = true
+    }
+
+    /// One reconnect attempt failed (posted by MainViewModel on the main thread).
+    private func handleReconnectAttemptFailed() {
+        guard viewModel.isReconnecting, !hasPerformedTeardown else { return }
+
+        // Drop the failed manager so the next attempt builds a fresh one.
+        streamMan?.stopStream()
+        streamMan = nil
+
+        guard let deadline = reconnectDeadline, Date() < deadline else {
+            print("[CurvedDisplay] Reconnect window is over. Giving up.")
+            reconnectDeadline = nil
+            viewModel.reconnectGaveUp()
+            return
+        }
+
+        print("[CurvedDisplay] Reconnect attempt failed. Trying again in 2s.")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            // Skip if the picture came back, the stream was closed, or the app was
+            // suspended again (the resume path starts a fresh attempt in that case).
+            guard self.viewModel.isReconnecting, !self.needsResume, !self.hasPerformedTeardown, self.streamMan == nil else { return }
+            self.startStreamIfNeeded()
+        }
+    }
+
+    private func showReconnectingToast() {
+        presetOverlayTimer?.invalidate()
+        presetOverlayTimer = nil
+        presetOverlayText = "Reconnecting..."
+        presetOverlayIcon = "arrow.triangle.2.circlepath"
+        showInlinePresetOverlay = true
+    }
+
+    private func hideReconnectingToast() {
+        guard presetOverlayText == "Reconnecting..." else { return }
+        presetOverlayTimer?.invalidate()
+        presetOverlayTimer = nil
+        withAnimation(.easeOut(duration: 0.15)) {
+            showInlinePresetOverlay = false
+        }
+    }
+
     /// Brief center toast when a stream starts with Enhanced HDR (FILTER) grading.
     private func showHDRPresetToastOnStreamStart() {
+        if viewModel.isReconnecting { return }
         guard viewModel.streamSettings.uikitPreset == 0 else { return }
 
         let label: String

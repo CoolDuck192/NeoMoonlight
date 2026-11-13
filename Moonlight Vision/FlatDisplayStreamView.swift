@@ -893,6 +893,8 @@ struct _FlatDisplayStreamView: View {
     @State private var correctedResolution: (Int, Int)? = nil
     @State private var correctedResolutionVersion: Int = 0
     @State private var needsResume = false
+    /// Reconnect attempts stop after this moment (set when a suspended stream is resumed).
+    @State private var reconnectDeadline: Date? = nil
     @State private var videoMode: VideoMode = .standard2D
     @State private var show3DConfirm = false
     @State private var showHDRPanel = false
@@ -1264,6 +1266,16 @@ struct _FlatDisplayStreamView: View {
                 }
                 .onChange(of: scenePhase) { _, newValue in
                     handleFlatScenePhaseChange(newValue)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ReconnectAttemptFailed"))) { _ in
+                    handleReconnectAttemptFailed()
+                }
+                .onChange(of: viewModel.isReconnecting) { _, reconnecting in
+                    if reconnecting {
+                        showReconnectingToast()
+                    } else {
+                        hideReconnectingToast()
+                    }
                 }
                 .onChange(of: viewModel.streamSettings.statsOverlay) { _, newValue in
                     if newValue { startStatsTimer() } else { statsTimer?.invalidate(); statsTimer = nil; statsOverlayText = "" }
@@ -2194,6 +2206,7 @@ struct _FlatDisplayStreamView: View {
     }
 
     private func showHDRPresetToastOnStreamStart() {
+        if viewModel.isReconnecting { return }
         guard viewModel.streamSettings.uikitPreset == 0 else { return }
 
         let label: String
@@ -2273,6 +2286,15 @@ struct _FlatDisplayStreamView: View {
             KeyboardSupport.releaseAllKeys()
         }
         if newValue == .background {
+            if !isMenuOpen && viewModel.isReconnecting, streamMan == nil {
+                // Suspended between two reconnect attempts: hand over to the normal resume path.
+                needsResume = true
+                startingStream = false
+                viewModel.isSuspendingForBackground = true
+                controllerSupport?.cleanup()
+                BluetoothMouseRouting.releasePointerLock()
+                controllerSupport = nil
+            }
             if !isMenuOpen && viewModel.activelyStreaming, streamMan != nil {
                 print("Suspending stream due to background (Menu is not open)")
                 needsResume = true
@@ -2293,6 +2315,7 @@ struct _FlatDisplayStreamView: View {
 
         if needsResume {
             print("Resuming stream from background")
+            beginReconnectWindow()
             viewModel.isSuspendingForBackground = false
             needsResume = false
             renderGateOpen = true
@@ -2309,7 +2332,7 @@ struct _FlatDisplayStreamView: View {
         }
 
         guard viewModel.activelyStreaming else { return }
-        if streamMan == nil {
+        if streamMan == nil && !viewModel.isReconnecting {
             print("[FlatDisplay] Stream died while inactive - restarting")
             renderGateOpen = true
             hasPerformedTeardown = false
@@ -2324,6 +2347,61 @@ struct _FlatDisplayStreamView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { self.refreshAfterResume() }
     }
     
+    // MARK: - Reconnect after the headset was taken off
+
+    /// Opens a 30-second window in which a failed resume is retried instead of ignored.
+    private func beginReconnectWindow() {
+        // Only a stream that was already showing a picture can be reconnected.
+        // A first start that fails keeps its normal error path.
+        guard viewModel.streamState == .running else { return }
+        // Co-op (SharePlay) sessions keep their existing resume behaviour.
+        guard !viewModel.isCoopSession else { return }
+        reconnectDeadline = Date().addingTimeInterval(30)
+        viewModel.isReconnecting = true
+    }
+
+    /// One reconnect attempt failed (posted by MainViewModel on the main thread).
+    private func handleReconnectAttemptFailed() {
+        guard viewModel.isReconnecting, !hasPerformedTeardown else { return }
+
+        // Drop the failed manager so the next attempt builds a fresh one.
+        streamMan?.stopStream()
+        streamMan = nil
+
+        guard let deadline = reconnectDeadline, Date() < deadline else {
+            print("[FlatDisplay] Reconnect window is over. Giving up.")
+            reconnectDeadline = nil
+            viewModel.reconnectGaveUp()
+            return
+        }
+
+        print("[FlatDisplay] Reconnect attempt failed. Trying again in 2s.")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            // Skip if the picture came back, the stream was closed, or the app was
+            // suspended again (the resume path starts a fresh attempt in that case).
+            guard self.viewModel.isReconnecting, !self.needsResume, !self.hasPerformedTeardown, self.streamMan == nil else { return }
+            self.startingStream = false
+            self.startStreamIfNeeded()
+        }
+    }
+
+    private func showReconnectingToast() {
+        presetOverlayTimer?.invalidate()
+        presetOverlayTimer = nil
+        presetOverlayText = "Reconnecting..."
+        presetOverlayIcon = "arrow.triangle.2.circlepath"
+        showInlinePresetOverlay = true
+    }
+
+    private func hideReconnectingToast() {
+        guard presetOverlayText == "Reconnecting..." else { return }
+        presetOverlayTimer?.invalidate()
+        presetOverlayTimer = nil
+        withAnimation(.easeOut(duration: 0.15)) {
+            showInlinePresetOverlay = false
+        }
+    }
+
     private var effectivePinchDragUsesScroll: Bool {
         sessionPinchDragUsesScroll ?? viewModel.streamSettings.gazePinchDragScrollMode
     }

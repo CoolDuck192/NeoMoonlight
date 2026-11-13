@@ -79,6 +79,11 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     @Published var reconnectCooldownUntil: Date? = nil
     
     @Published var isSwappingRenderers: Bool = false
+
+    /// True while a stream view is trying to get its stream back after the headset
+    /// was taken off. The view shows "Reconnecting..." and retries; a failed attempt
+    /// must not be ignored and must not tear the stream down.
+    @Published var isReconnecting: Bool = false
     
     /// True when the stream view (CurvedDisplay/FlatDisplay) is alive and listening for notifications.
     /// Used by Resume button to decide whether to post a notification or re-launch the immersive space.
@@ -197,6 +202,10 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         center.addObserver(forName: Notification.Name("RKStreamFirstFrameShown"), object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
+                if self.isReconnecting {
+                    print("[Lifecycle] Picture is back. Reconnect finished.")
+                    self.isReconnecting = false
+                }
                 guard self.streamState == .starting else {
                     print("[Lifecycle] Ignoring stale RKStreamFirstFrameShown (current state: \(self.streamState.rawValue))")
                     return
@@ -270,6 +279,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
             self.currentlyStreamingAppId = nil
             self.streamState = .idle
             
+            self.isReconnecting = false
             // FIXED: Clear cooldown immediately after successful teardown
             self.reconnectCooldownUntil = nil
             
@@ -314,6 +324,13 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     /// so the view (FlatDisplay/CurvedDisplay) tears down its resources (streamMan, immersive space).
     /// The view's teardown will then post RKStreamDidTeardown → onTeardownComplete → .idle.
     private func onStreamStartFailed() {
+        if isReconnecting && streamState == .running {
+            // One reconnect attempt failed. Keep the stream view alive and let it decide
+            // whether to try again or give up (it listens for ReconnectAttemptFailed).
+            print("[Lifecycle] Reconnect attempt failed. Notifying the stream view.")
+            NotificationCenter.default.post(name: Notification.Name("ReconnectAttemptFailed"), object: nil)
+            return
+        }
         guard streamState == .starting else {
             print("[Lifecycle] Ignoring StreamStartFailed because state is not 'starting' (current: \(streamState.rawValue))")
             return
@@ -919,6 +936,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         // Ghost views will check this token and render black instead of running logic.
         let newToken = UUID().uuidString
         activeSessionToken = newToken
+        isReconnecting = false
         debugLog("[Safety] Generated new activeSessionToken: \(newToken)")
         
         // If we're stuck in stopping state for too long, force reset
@@ -1100,6 +1118,19 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
     func canReconnectNow() -> Bool {
         reconnectCooldownRemaining() <= 0
+    }
+
+    /// Called by a stream view when its reconnect attempts ran out. Ends the stream
+    /// the same way a lost connection does and says why on the menu.
+    func reconnectGaveUp() {
+        guard isReconnecting else { return }
+        print("[Lifecycle] Reconnect gave up. Ending the stream.")
+        isReconnecting = false
+        streamEndMessage = "Could not reconnect to your PC. Check that it is on and awake, then connect again."
+        if streamState == .running || streamState == .starting {
+            streamState = .stopping
+            shouldCloseStream = true
+        }
     }
 
     // Centralized await for teardown completion or timeout
