@@ -421,6 +421,8 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
+                    UltrawideSizeSettingRow()
+
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Auto-Aim Screen", isOn: $settings.curvedAutoAim)
                             .foregroundColor(.white)
