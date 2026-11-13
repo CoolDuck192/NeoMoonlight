@@ -871,6 +871,7 @@ struct _FlatDisplayStreamView: View {
     
     @State private var showVirtualKeyboard = false
     @State private var keyboardInput: String = " "
+    @State private var previousKeyboardInput: String = " "
     @FocusState private var isKeyboardFocused: Bool
     @State private var hideControls: Bool = true
     @State private var controlsExpanded: Bool = false
@@ -1152,24 +1153,27 @@ struct _FlatDisplayStreamView: View {
             // Hidden TextField to trigger keyboard via @FocusState
             TextField("", text: $keyboardInput)
                 .focused($isKeyboardFocused)
+                .autocorrectionDisabled(true)
+                .textInputAutocapitalization(.never)
                 .opacity(0.001)
                 .frame(width: 1, height: 1)
                 .allowsHitTesting(false)
                 .onSubmit {
                     // When user hits return, send the Return key to the stream
                     print("[Keyboard] Submit detected, sending Return key")
-                    let returnKey = "\n"
-                    let cString = returnKey.cString(using: .utf8)
-                    cString?.withUnsafeBufferPointer { ptr in
-                        if let base = ptr.baseAddress {
-                            LiSendUtf8TextEvent(base, UInt32(returnKey.utf8.count))
-                        }
-                    }
+                    // Send Return as a key (VK_RETURN), queued behind any text still being sent
+                    SoftKeyboardSender.sendReturn()
                     
                     // Then close the keyboard and clear text
                     showVirtualKeyboard = false
                     isKeyboardFocused = false
                     keyboardInput = ""
+                    previousKeyboardInput = ""
+                }
+                .onChange(of: keyboardInput) { _, newValue in
+                    // Forward what was typed. Until now nothing read this field, so typed text never left the headset.
+                    SoftKeyboardSender.applyEdit(from: previousKeyboardInput, to: newValue)
+                    previousKeyboardInput = newValue
                 }
         }
         .onTapGesture {
