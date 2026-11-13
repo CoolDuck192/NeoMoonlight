@@ -552,23 +552,25 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             NSData* fullFrameData = [NSData dataWithBytesNoCopy:data length:length freeWhenDone:NO];
             
             Log(LOG_I, @"Constructing new AV1 format description");
-#if TARGET_OS_VISION
-            // Prefer the FFmpeg-free Swift parser (AV1Parser.swift, visionOS target only):
-            // FFmpeg libs built without CONFIG_CBS_AV1 make ff_cbs_init() fail with EINVAL
-            // on every IDR frame and the stream never starts. FFmpeg remains the fallback.
-            CMVideoFormatDescriptionRef swiftDesc =
-                [AV1FormatDescriptionBridge formatDescriptionFromIDRFrame:fullFrameData
-                                             masteringDisplayColorVolume:masteringDisplayColorVolume
-                                                   contentLightLevelInfo:contentLightLevelInfo];
-            if (swiftDesc != NULL) {
-                formatDesc = (CMVideoFormatDescriptionRef)CFRetain(swiftDesc);
-            }
-            else {
-                Log(LOG_W, @"Swift AV1 parser failed, falling back to FFmpeg");
-                formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
-            }
-#else
             formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
+#if TARGET_OS_VISION
+            if (formatDesc == NULL) {
+                // FFmpeg libs built without CONFIG_CBS_AV1 make ff_cbs_init() fail with EINVAL
+                // on every IDR frame and the stream never starts. Fall back to the FFmpeg-free
+                // Swift parser (AV1Parser.swift, visionOS target only) in that case.
+                //
+                // FFmpeg stays first while it is linked: the Swift parser tags Rec.601 SDR
+                // streams as DCI-P3 primaries + sRGB transfer, which AVSampleBufferDisplayLayer
+                // would colour-manage differently from the SMPTE-C + ITU-R 709 tags built above.
+                Log(LOG_W, @"FFmpeg AV1 parser failed, falling back to the Swift AV1 parser");
+                CMVideoFormatDescriptionRef swiftDesc =
+                    [AV1FormatDescriptionBridge formatDescriptionFromIDRFrame:fullFrameData
+                                                 masteringDisplayColorVolume:masteringDisplayColorVolume
+                                                       contentLightLevelInfo:contentLightLevelInfo];
+                if (swiftDesc != NULL) {
+                    formatDesc = (CMVideoFormatDescriptionRef)CFRetain(swiftDesc);
+                }
+            }
 #endif
         }
         else {
