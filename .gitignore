@@ -2,6 +2,7 @@
 _private/
 
 **/xcuserdata/
+Config/Signing.local.xcconfig
 **/Moonlight.xcscmblueprint
 Build
 DerivedData

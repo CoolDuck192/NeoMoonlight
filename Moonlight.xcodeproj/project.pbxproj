@@ -375,6 +375,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C0FFEE000000000000051A10 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
 		3A0C71A03C724E81996785B1 /* ConnectionSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSerializer.swift; sourceTree = "<group>"; };
 		3E4F94682DC2E2D6006CF0C1 /* ComputerViewWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerViewWrapper.swift; sourceTree = "<group>"; };
 		3E86FC1C2D4FFDED0016BB8E /* UpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesView.swift; sourceTree = "<group>"; };
@@ -1005,6 +1006,7 @@
 				F7A119FE2B5DF387001E8686 /* Packages */,
 				FB290CEF19B2C406004C83CF /* Products */,
 				DDCAEC3D2EC7B7CE0073A6C7 /* Moonlight copy-Info.plist */,
+				C0FFEE000000000000051A10 /* Signing.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -1893,6 +1895,7 @@
 /* Begin XCBuildConfiguration section */
 		F7A119532B5DDF73001E8686 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0FFEE000000000000051A10 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Moon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
@@ -1902,7 +1905,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = YJ7T2CX9YB;
 				ENABLE_MODULE_VERIFIER = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
@@ -1951,7 +1953,6 @@
 				);
 				MARKETING_VERSION = 12.2;
 				OTHER_LDFLAGS = "-ld64";
-				PRODUCT_BUNDLE_IDENTIFIER = com.neovectorx.neomoonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1973,6 +1974,7 @@
 		};
 		F7A119542B5DDF73001E8686 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0FFEE000000000000051A10 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Moon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
@@ -1982,7 +1984,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = YJ7T2CX9YB;
 				ENABLE_MODULE_VERIFIER = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
@@ -2031,7 +2032,6 @@
 				);
 				MARKETING_VERSION = 12.2;
 				OTHER_LDFLAGS = "-ld64";
-				PRODUCT_BUNDLE_IDENTIFIER = com.neovectorx.neomoonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2255,7 +2255,6 @@
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					NDEBUG,
-					ENABLE_APP_STORE_RESTRICTIONS,
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;

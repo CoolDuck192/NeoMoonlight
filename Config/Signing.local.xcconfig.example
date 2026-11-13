@@ -1,0 +1,10 @@
+// Copy this file to Signing.local.xcconfig and fill in your own values.
+// Signing.local.xcconfig is git-ignored, so your team ID stays out of the repo.
+
+// Your 10-character Apple Developer Team ID.
+// Find it at https://developer.apple.com/account under "Membership details".
+DEVELOPMENT_TEAM = ABCDE12345
+
+// Any bundle identifier that is unique to you. Changing it later creates a
+// separate app on the headset with its own settings and PC pairings.
+PRODUCT_BUNDLE_IDENTIFIER = com.yourname.neomoonlight

@@ -1,0 +1,11 @@
+// Signing settings for the "Moonlight XrOS" (Vision Pro) target.
+//
+// Do not put your own values in this file. Copy Signing.local.xcconfig.example
+// to Signing.local.xcconfig (which git ignores) and edit that copy instead.
+// The values below are only placeholders so the project opens and CI can
+// build unsigned.
+
+DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = com.example.neomoonlight
+
+#include? "Signing.local.xcconfig"
