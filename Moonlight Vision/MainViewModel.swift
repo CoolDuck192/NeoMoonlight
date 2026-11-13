@@ -710,6 +710,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         config.host = host.activeAddress ?? host.address
         if config.host == nil {
             print("stream - ERROR: Host \(host.name) has no valid address (activeAddress or address).")
+            streamState = .idle
             return nil
         }
 
@@ -842,6 +843,10 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
 
         currentStreamConfig = config
         currentlyStreamingAppId = app.id ?? app.name
+        if !isCoopSession {
+            // Remember this for the Continue card on the main menu.
+            LastSession.save(hostUUID: host.uuid, hostName: host.name, appID: app.id, appName: app.name)
+        }
         classicWindowNeedsManualClose = false
         realityWindowNeedsManualClose = false
         activelyStreaming = true
@@ -849,6 +854,17 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         return currentStreamConfig
     }
     
+    /// Undoes stream(app:) when the stream surface could not be opened, so the app is
+    /// not left believing a stream is starting.
+    func abortStreamStart() {
+        guard streamState == .starting else { return }
+        print("[Lifecycle] Stream surface failed to open. Resetting to idle.")
+        streamState = .idle
+        activelyStreaming = false
+        shouldCloseStream = false
+        currentlyStreamingAppId = nil
+    }
+
     private func canStartNewStream() -> Bool {
         // Check if we're in an appropriate state
         guard streamState == .idle else {

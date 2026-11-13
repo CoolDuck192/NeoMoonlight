@@ -573,6 +573,7 @@ struct ComputersTabView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                ContinueCard()
                 if viewModel.hostsWithPairState.isEmpty {
                     EmptyStateCard().padding(.top, 16)
                 } else {
