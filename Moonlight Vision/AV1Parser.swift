@@ -108,7 +108,8 @@ let MC_ICTCP = 14
 public func CMVideoFormatDescriptionCreateFromAV1SequenceHeaderOBUWithAV1C(
     _ obuData: UnsafeMutableBufferPointer<UInt8>,
     masteringDisplayColorVolume: Data? = nil,
-    contentLightLevelInfo: Data? = nil
+    contentLightLevelInfo: Data? = nil,
+    displayLayerTags: Bool = false
 ) throws -> CMFormatDescription {
     guard let seqRange = findSequenceHeaderOBURange(in: obuData) else {
         throw AV1FormatDescriptionError.sequenceHeaderNotFound
@@ -141,14 +142,14 @@ public func CMVideoFormatDescriptionCreateFromAV1SequenceHeaderOBUWithAV1C(
     let atomsValue = av1Cpayload as CFData
     let atomsDict = [atomsKey: atomsValue] as CFDictionary
 
-    let cpMap: [Int: CFString] = [
+    var cpMap: [Int: CFString] = [
         CP_BT_709 : kCVImageBufferColorPrimaries_ITU_R_709_2,
         CP_BT_2020 : kCVImageBufferColorPrimaries_ITU_R_2020,
         CP_BT_601 : kCVImageBufferColorPrimaries_DCI_P3,
     ]
     // ISO/IEC 23091-4 / AV1 color_config.transfer_characteristics. PQ (16) and HLG (18) must be present
     // or CMVideoFormatDescription defaults to 709 transfer and VideoToolbox + the client mis-handle HDR.
-    let tcMap: [Int: CFString] = [
+    var tcMap: [Int: CFString] = [
         TC_BT_709: kCVImageBufferTransferFunction_ITU_R_709_2,
         TC_BT_2020_10_BIT: kCVImageBufferTransferFunction_ITU_R_2020,
         TC_BT_2020_12_BIT: kCVImageBufferTransferFunction_ITU_R_2020,
@@ -165,15 +166,34 @@ public func CMVideoFormatDescriptionCreateFromAV1SequenceHeaderOBUWithAV1C(
         MC_BT_601 : kCVImageBufferYCbCrMatrix_ITU_R_601_4
     ]
 
+    // AVSampleBufferDisplayLayer (Classic mode) colour-manages the picture from these tags, so
+    // for that path a Rec.601 stream is described the way upstream Moonlight's FFmpeg-based code
+    // described it. The Curved and Flat renderers keep the mapping above.
+    if displayLayerTags {
+        cpMap[CP_BT_601] = kCVImageBufferColorPrimaries_SMPTE_C
+        tcMap[TC_BT_601] = kCVImageBufferTransferFunction_ITU_R_709_2
+    }
+
     var extensions:[NSString: AnyObject] = [:]
     extensions[kCMFormatDescriptionExtension_BitsPerComponent] = seqInfo.bitsPerComponent as NSNumber
     extensions[kCMFormatDescriptionExtension_FieldCount] = 1 as NSNumber
-    extensions[kCMFormatDescriptionExtension_ChromaLocationBottomField] = kCVImageBufferChromaLocation_Left
-    extensions[kCMFormatDescriptionExtension_ChromaLocationTopField] = kCVImageBufferChromaLocation_Left
+    if displayLayerTags {
+        switch seqInfo.chroma_sample_position {
+        case CSP_VERTICAL:
+            extensions[kCMFormatDescriptionExtension_ChromaLocationTopField] = kCVImageBufferChromaLocation_Left
+        case CSP_COLOCATED:
+            extensions[kCMFormatDescriptionExtension_ChromaLocationTopField] = kCVImageBufferChromaLocation_TopLeft
+        default:
+            break
+        }
+    } else {
+        extensions[kCMFormatDescriptionExtension_ChromaLocationBottomField] = kCVImageBufferChromaLocation_Left
+        extensions[kCMFormatDescriptionExtension_ChromaLocationTopField] = kCVImageBufferChromaLocation_Left
+    }
     extensions[kCMFormatDescriptionExtension_ColorPrimaries] = cpMap[seqInfo.colorPrimaries, default: kCVImageBufferColorPrimaries_ITU_R_709_2]
     extensions[kCMFormatDescriptionExtension_TransferFunction] = tcMap[seqInfo.transferCharacteristics, default: kCVImageBufferTransferFunction_ITU_R_709_2]
     extensions[kCMFormatDescriptionExtension_YCbCrMatrix] = mMap[seqInfo.matrixCoefficients, default: kCVImageBufferYCbCrMatrix_ITU_R_709_2]
-    extensions[kCMFormatDescriptionExtension_Depth] = (seqInfo.bitsPerComponent * 3) as NSNumber
+    extensions[kCMFormatDescriptionExtension_Depth] = (displayLayerTags ? 24 : seqInfo.bitsPerComponent * 3) as NSNumber
     extensions[kCMFormatDescriptionExtension_FormatName] = "av01" as NSString
     extensions[kCMFormatDescriptionExtension_FullRangeVideo] = seqInfo.isFullRange as NSNumber
     if let masteringDisplayColorVolume {
@@ -647,10 +667,10 @@ extension UnsafeMutableBufferPointer {
 
 // MARK: - Objective-C bridge for the UIKit video path
 
-/// Exposes this parser to VideoDecoderRenderer.m. The UIKit path historically built its AV1
-/// CMVideoFormatDescription through FFmpeg's coded bitstream reader; FFmpeg libraries built
-/// without CONFIG_CBS_AV1 make ff_cbs_init() fail with EINVAL on every IDR frame, leaving the
-/// stream stuck requesting IDRs forever. This parser has no FFmpeg dependency.
+/// Exposes this parser to VideoDecoderRenderer.m (Classic mode). Upstream Moonlight builds its AV1
+/// CMVideoFormatDescription there through FFmpeg's coded bitstream reader. The Vision Pro target
+/// no longer links FFmpeg, so on visionOS this parser is the only source of that description.
+/// It asks for the display-layer tag mapping so colours match what the FFmpeg code produced.
 @objc(AV1FormatDescriptionBridge)
 public class AV1FormatDescriptionBridge: NSObject {
 
@@ -670,7 +690,8 @@ public class AV1FormatDescriptionBridge: NSObject {
             return try? CMVideoFormatDescriptionCreateFromAV1SequenceHeaderOBUWithAV1C(
                 buffer,
                 masteringDisplayColorVolume: mdcv,
-                contentLightLevelInfo: clli
+                contentLightLevelInfo: clli,
+                displayLayerTags: true
             )
         }
     }

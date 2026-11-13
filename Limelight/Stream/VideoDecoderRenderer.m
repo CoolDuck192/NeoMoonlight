@@ -11,6 +11,10 @@
 #import "NSData+Conversion.h"
 #import "Moonlight-Swift.h"
 
+// The Vision Pro target does not link FFmpeg: the bundled FFmpeg archives are iOS builds, which
+// the linker in Xcode 27 refuses in a visionOS app. AV1 format descriptions come from
+// AV1Parser.swift there instead (see AV1FormatDescriptionBridge).
+#if !TARGET_OS_VISION
 #include <libavcodec/avcodec.h>
 #include <libavcodec/cbs.h>
 #include <libavcodec/cbs_av1.h>
@@ -20,6 +24,7 @@
 // Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                               int write_seq_header);
+#endif
 
 @implementation VideoDecoderRenderer {
     StreamView* _view;
@@ -205,6 +210,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 }
 
+#if !TARGET_OS_VISION
 - (NSData*)getAv1CodecConfigurationBox:(NSData*)frameData  {
     AVIOContext* ioctx = NULL;
     int err;
@@ -423,6 +429,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     ff_cbs_close(&cbsCtx);
     return formatDesc;
 }
+#endif
 
 // This function must free data for bufferType == BUFFER_TYPE_PICDATA
 - (int)submitDecodeBuffer:(unsigned char *)data length:(int)length bufferType:(int)bufferType decodeUnit:(PDECODE_UNIT)du
@@ -552,25 +559,22 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             NSData* fullFrameData = [NSData dataWithBytesNoCopy:data length:length freeWhenDone:NO];
             
             Log(LOG_I, @"Constructing new AV1 format description");
-            formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
 #if TARGET_OS_VISION
-            if (formatDesc == NULL) {
-                // FFmpeg libs built without CONFIG_CBS_AV1 make ff_cbs_init() fail with EINVAL
-                // on every IDR frame and the stream never starts. Fall back to the FFmpeg-free
-                // Swift parser (AV1Parser.swift, visionOS target only) in that case.
-                //
-                // FFmpeg stays first while it is linked: the Swift parser tags Rec.601 SDR
-                // streams as DCI-P3 primaries + sRGB transfer, which AVSampleBufferDisplayLayer
-                // would colour-manage differently from the SMPTE-C + ITU-R 709 tags built above.
-                Log(LOG_W, @"FFmpeg AV1 parser failed, falling back to the Swift AV1 parser");
-                CMVideoFormatDescriptionRef swiftDesc =
-                    [AV1FormatDescriptionBridge formatDescriptionFromIDRFrame:fullFrameData
-                                                 masteringDisplayColorVolume:masteringDisplayColorVolume
-                                                       contentLightLevelInfo:contentLightLevelInfo];
-                if (swiftDesc != NULL) {
-                    formatDesc = (CMVideoFormatDescriptionRef)CFRetain(swiftDesc);
-                }
+            // No FFmpeg in the Vision Pro target: the Swift parser (AV1Parser.swift) builds the
+            // description, with the same colour tags the FFmpeg code gives on iOS and tvOS.
+            // The bridge returns an unretained reference, so retain it before storing it.
+            CMVideoFormatDescriptionRef swiftDesc =
+                [AV1FormatDescriptionBridge formatDescriptionFromIDRFrame:fullFrameData
+                                             masteringDisplayColorVolume:masteringDisplayColorVolume
+                                                   contentLightLevelInfo:contentLightLevelInfo];
+            if (swiftDesc != NULL) {
+                formatDesc = (CMVideoFormatDescriptionRef)CFRetain(swiftDesc);
             }
+            else {
+                Log(LOG_E, @"Failed to create AV1 format description from the IDR frame");
+            }
+#else
+            formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
 #endif
         }
         else {
