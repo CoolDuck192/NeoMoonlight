@@ -987,7 +987,7 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         beginReconnectCooldown(1.5)
         
         // Send quit request and wait for it to complete BEFORE triggering teardown
-        if let appId = currentlyStreamingAppId,
+        if !shouldSkipQuitOnDisconnect, let appId = currentlyStreamingAppId,
            let host = hostForQuitRequest(appId: appId) {
             
             print("[ViewModel] ✅ Found host: \(host.name) for app: \(appId)")
@@ -1026,7 +1026,11 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
                 self.shouldCloseStream = true
             }
         } else {
-            print("[ViewModel] ⚠️ WARNING: No active app found (appId: \(currentlyStreamingAppId ?? "nil")), skipping quit request")
+            if shouldSkipQuitOnDisconnect {
+                print("[ViewModel] Keep App Running is on: leaving the app open on the PC, no quit request sent.")
+            } else {
+                print("[ViewModel] ⚠️ WARNING: No active app found (appId: \(currentlyStreamingAppId ?? "nil")), skipping quit request")
+            }
             
             // No quit request needed, proceed directly to teardown
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -1072,6 +1076,17 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         
         // Give a moment for the audio session to settle
         try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    /// Settings > Connection > "Keep App Running After Disconnect" (default off).
+    var keepAppRunningOnDisconnect: Bool {
+        UserDefaults.standard.bool(forKey: "connect.keepAppRunningOnDisconnect")
+    }
+
+    /// True when a disconnect should leave the app open on the PC. Co-op always
+    /// behaves as before.
+    private var shouldSkipQuitOnDisconnect: Bool {
+        keepAppRunningOnDisconnect && !isCoopSession
     }
 
     func beginReconnectCooldown(_ seconds: TimeInterval = 1.0) {

@@ -231,11 +231,19 @@ struct AppsView: View {
         }
         
         if viewModel.activelyStreaming || viewModel.streamState != .idle {
+            // With Keep App Running on, Disconnect leaves the old app open and the PC
+            // would bring it back instead of starting the new one. Quit it first.
+            let quitOldAppFirst = viewModel.keepAppRunningOnDisconnect
+                && !viewModel.isCoopSession
+                && viewModel.currentlyStreamingAppId != app.id
             print("[AppsView] Requesting new stream while another is active. Disconnecting first.")
             viewModel.userDidRequestDisconnect()
 
             Task {
                 await viewModel.waitForTeardown()
+                if quitOldAppFirst {
+                    _ = await viewModel.quitRunningApp(on: host)
+                }
                 print("[AppsView] Teardown complete. Now opening new stream.")
                 openAppStream(app: app)
             }

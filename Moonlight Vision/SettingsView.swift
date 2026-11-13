@@ -913,6 +913,8 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
                 
+                ConnectionSettingsSection()
+
                 // Advanced Settings
                 SettingsSection(title: "Advanced") {
                     HStack {
