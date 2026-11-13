@@ -1177,12 +1177,12 @@ struct _FlatDisplayStreamView: View {
         
         let withOrnaments: AnyView = AnyView(
             mainContent
-                .ornament(attachmentAnchor: OrnamentAttachmentAnchor.scene(.top), contentAlignment: Alignment.bottom) {
+                .ornament(attachmentAnchor: OrnamentAttachmentAnchor.scene(.top), contentAlignment: .bottom) {
                     topControlsBar
                         .scaleEffect(flatTopControlsScale, anchor: .bottom)
                         .padding(.bottom, 8)
                 }
-                .ornament(attachmentAnchor: OrnamentAttachmentAnchor.scene(.bottom), contentAlignment: Alignment.top) {
+                .ornament(attachmentAnchor: OrnamentAttachmentAnchor.scene(.bottom), contentAlignment: .top) {
                     VStack(spacing: 12) {
                         if viewModel.streamSettings.showMicButton {
                             FloatingMicButton(
