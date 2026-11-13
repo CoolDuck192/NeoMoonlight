@@ -9,7 +9,50 @@
 #import "KeyboardSupport.h"
 #include <Limelight.h>
 
+// Win32 VK codes (low byte) for which a key-down has been sent and no key-up yet.
+// Only touched inside @synchronized([KeyboardSupport class]).
+static NSMutableSet<NSNumber*>* neoKeysDown = nil;
+
 @implementation KeyboardSupport
+
++ (void)neo_noteKey:(short)keyCode down:(BOOL)down {
+    @synchronized ([KeyboardSupport class]) {
+        if (neoKeysDown == nil) {
+            neoKeysDown = [[NSMutableSet alloc] init];
+        }
+        NSNumber* vk = @(keyCode & 0xFF);
+        if (down) {
+            [neoKeysDown addObject:vk];
+        }
+        else {
+            [neoKeysDown removeObject:vk];
+        }
+    }
+}
+
++ (void)releaseAllKeys {
+    NSArray<NSNumber*>* keys = nil;
+    @synchronized ([KeyboardSupport class]) {
+        keys = [neoKeysDown allObjects];
+        [neoKeysDown removeAllObjects];
+    }
+
+    if (keys.count > 0) {
+        NSLog(@"[Keyboard] releaseAllKeys: sending key-up for %lu held key(s)", (unsigned long)keys.count);
+    }
+
+    // Ordinary keys first, modifiers (Win, Shift, Ctrl, Alt) last
+    for (int pass = 0; pass < 2; pass++) {
+        for (NSNumber* vk in keys) {
+            short keyCode = [vk shortValue];
+            BOOL isModifier = (keyCode == 0x5B || keyCode == 0x5C ||
+                               (keyCode >= 0xA0 && keyCode <= 0xA5));
+            if (isModifier == (pass == 1)) {
+                LiSendKeyboardEvent(0x8000 | keyCode, KEY_ACTION_UP, 0);
+            }
+        }
+    }
+}
 
 + (BOOL)sendKeyEventForPress:(UIPress*)press down:(BOOL)down API_AVAILABLE(ios(13.4)) {
     if (press.key != nil) {
@@ -36,6 +79,7 @@
                 return NO;
         }
         
+        [KeyboardSupport neo_noteKey:keyCode down:down];
         LiSendKeyboardEvent(0x8000 | keyCode,
                             down ? KEY_ACTION_DOWN : KEY_ACTION_UP,
                             0);
@@ -260,6 +304,7 @@
         }
     }
     
+    [KeyboardSupport neo_noteKey:keyCode down:down];
     LiSendKeyboardEvent(0x8000 | keyCode,
                         down ? KEY_ACTION_DOWN : KEY_ACTION_UP,
                         modifierFlags);
