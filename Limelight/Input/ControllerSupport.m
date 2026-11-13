@@ -2107,11 +2107,16 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
 #elif defined(TARGET_OS_VISION) && TARGET_OS_VISION
     // visionOS: Flat and Classic scroll through UIKit on their window. Curved is an ImmersiveSpace with no
     // such view, so it opts in to GCMouse scroll through forwardsGCMouseScroll.
+    // visionOS puts an acceleration ramp on GCMouse scroll values: SDL measured about 0.017 for one slow
+    // detent and up to a few hundred during a fast spin (visionOS 26.5, Bluetooth mouse; SDL commit f9380e1),
+    // so the size is not a distance. Each non-zero event counts as one wheel step: 120 host units, one
+    // Windows notch, times the scale.
     mouse.mouseInput.scroll.xAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
+        if (value == 0.0f) { return; }
         float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
-        float pending = strongSelf->accumulatedScrollX + value * 20.0f * scale;
+        float pending = strongSelf->accumulatedScrollX + (value > 0.0f ? 120.0f : -120.0f) * scale;
         pending = fminf(fmaxf(pending, -32767.0f), 32767.0f);
         short units = (short)pending;
         strongSelf->accumulatedScrollX = pending - (float)units;
@@ -2123,8 +2128,9 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
     mouse.mouseInput.scroll.yAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
+        if (value == 0.0f) { return; }
         float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
-        float pending = strongSelf->accumulatedScrollY + value * 20.0f * scale;
+        float pending = strongSelf->accumulatedScrollY + (value > 0.0f ? 120.0f : -120.0f) * scale;
         pending = fminf(fmaxf(pending, -32767.0f), 32767.0f);
         short units = (short)pending;
         strongSelf->accumulatedScrollY = pending - (float)units;
