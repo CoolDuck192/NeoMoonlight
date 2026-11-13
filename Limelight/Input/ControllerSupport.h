@@ -74,7 +74,8 @@
 - (void) releaseHeldInputsToHost;
 
 /// visionOS only: forward GCMouse scroll-wheel axes to the host. Default NO. Only the Curved view sets it;
-/// Flat and Classic already scroll through UIKit recognisers and would send twice.
+/// Flat and Classic already scroll through UIKit recognisers and would send twice. One instance forwards at
+/// a time: the last one that set this to YES, until it sets NO or is cleaned up.
 @property (nonatomic) BOOL forwardsGCMouseScroll;
 /// Wheel notches sent to the host per GCMouse scroll event (visionOS scroll values are accelerated, so their
 /// size is not used). Negative reverses direction. 0 (the default) is treated as 1.

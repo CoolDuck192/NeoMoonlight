@@ -21,6 +21,11 @@
 // Constants
 static const double MOUSE_SPEED_DIVISOR = 1.25;
 
+// The live instance that opted in to GCMouse scroll forwarding (forwardsGCMouseScroll = YES). GCMouse handlers
+// belong to the mouse, and instances that were replaced without cleanup re-install theirs on every mouse
+// reconnect, so the scroll handlers ask this instead of the instance that happened to install them.
+static __weak ControllerSupport *neo_gcMouseScrollOwner;
+
 // Implementation
 @implementation ControllerSupport {
     id _controllerConnectObserver;
@@ -2012,6 +2017,15 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
     }
 }
 
+- (void)setForwardsGCMouseScroll:(BOOL)forwardsGCMouseScroll {
+    _forwardsGCMouseScroll = forwardsGCMouseScroll;
+    if (forwardsGCMouseScroll) {
+        neo_gcMouseScrollOwner = self;
+    } else if (neo_gcMouseScrollOwner == self) {
+        neo_gcMouseScrollOwner = nil;
+    }
+}
+
 -(void) unregisterMouseCallbacks:(GCMouse*)mouse API_AVAILABLE(ios(14.0)) {
     mouse.mouseInput.mouseMovedHandler = nil;
     
@@ -2111,8 +2125,9 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
     // detent and up to a few hundred during a fast spin (visionOS 26.5, Bluetooth mouse; SDL commit f9380e1),
     // so the size is not a distance. Each non-zero event counts as one wheel step: 120 host units, one
     // Windows notch, times the scale.
+    // The handlers act for neo_gcMouseScrollOwner, not for the instance that installed them (see its comment).
     mouse.mouseInput.scroll.xAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
+        ControllerSupport *strongSelf = neo_gcMouseScrollOwner;
         if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
         if (value == 0.0f) { return; }
         float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
@@ -2126,7 +2141,7 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
         }
     };
     mouse.mouseInput.scroll.yAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
+        ControllerSupport *strongSelf = neo_gcMouseScrollOwner;
         if (strongSelf == nil || !strongSelf.forwardsGCMouseScroll) { return; }
         if (value == 0.0f) { return; }
         float scale = strongSelf.gcMouseScrollScale == 0.0f ? 1.0f : strongSelf.gcMouseScrollScale;
@@ -2513,6 +2528,10 @@ static BOOL neo_isStickOrTriggerElement(GCControllerElement *element, GCExtended
 
 - (void)cleanup
 {
+    if (neo_gcMouseScrollOwner == self) {
+        neo_gcMouseScrollOwner = nil;
+    }
+
     [self setInputSyncEnabled:NO];
 
     [[NSNotificationCenter defaultCenter] removeObserver:_controllerConnectObserver];
