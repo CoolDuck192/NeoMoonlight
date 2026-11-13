@@ -2994,13 +2994,13 @@ struct _FlatDisplayStreamView: View {
         guard let win = hostingWindow else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 if let w = self.hostingWindow {
-                    applyAspectRatioLock(streamConfiguration: effectiveConfig, targetWindow: w)
+                    applyAspectRatioLock(streamConfiguration: effectiveConfig, targetWindow: w, ultrawideEqualArea: true)
                 }
             }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            applyAspectRatioLock(streamConfiguration: effectiveConfig, targetWindow: win)
+            applyAspectRatioLock(streamConfiguration: effectiveConfig, targetWindow: win, ultrawideEqualArea: true)
         }
     }
     

@@ -1355,9 +1355,13 @@ private enum AspectLockMemory {
     static var firstRequestUptime: TimeInterval = 0
     /// Repeated requests are forwarded unchanged for this long after the first one (start-up burst).
     static let startupGraceSeconds: TimeInterval = 3.0
+    /// Bumped on every request so an older delayed check can tell it is stale.
+    static var generation = 0
+    /// Set when the system did not give the window the stream's shape at the wide size; stays set for this app run.
+    static var wideSizeRefused = false
 }
 
-func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow: UIWindow?) {
+func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow: UIWindow?, ultrawideEqualArea: Bool = false) {
     guard let window = targetWindow else {
         print("Error: No target window provided to apply aspect ratio lock.")
         return
@@ -1393,6 +1397,16 @@ func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow
             break
         }
     }
+
+    // Flat window only: a stream wider than 16:9 gets the same area as the 16:9 window (2000 x 1125 pt),
+    // so it opens wider instead of as a short strip. 16:9 and taller keep the size computed above.
+    let legacySize = desiredSize
+    var usesWideSize = false
+    if ultrawideEqualArea, !AspectLockMemory.wideSizeRefused,
+       let wide = UltrawideLayout.flatWindowSize(streamWidth: streamWidth, streamHeight: streamHeight, enabled: UltrawideLayout.isEnabled) {
+        desiredSize = wide
+        usesWideSize = true
+    }
     
     guard let windowScene = window.windowScene else {
         print("Error: Could not get window scene from target window.")
@@ -1402,7 +1416,7 @@ func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow
     #if os(visionOS)
     if windowScene.activationState != .foregroundActive {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            applyAspectRatioLock(streamConfiguration: streamConfiguration, targetWindow: targetWindow)
+            applyAspectRatioLock(streamConfiguration: streamConfiguration, targetWindow: targetWindow, ultrawideEqualArea: ultrawideEqualArea)
         }
         return
     }
@@ -1420,4 +1434,19 @@ func applyAspectRatioLock(streamConfiguration: StreamConfiguration, targetWindow
     )
     
     windowScene.requestGeometryUpdate(geometryRequest)
+
+    AspectLockMemory.generation += 1
+    if usesWideSize {
+        // The largest window visionOS allows is not documented. If the window did not take the stream's shape,
+        // go back to the size this function has always requested and stop asking for the wide one.
+        let generation = AspectLockMemory.generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak window] in
+            guard generation == AspectLockMemory.generation,
+                  let window, let scene = window.windowScene, window.bounds.height > 0 else { return }
+            let actual = window.bounds.width / window.bounds.height
+            guard abs(actual / streamAspectRatio - 1) > 0.03 else { return }
+            AspectLockMemory.wideSizeRefused = true
+            scene.requestGeometryUpdate(UIWindowScene.GeometryPreferences.Vision(size: legacySize, resizingRestrictions: .uniform))
+        }
+    }
 }
