@@ -1415,6 +1415,8 @@ struct _FlatDisplayStreamView: View {
                 } else {
                     pushWindow(id: "mainView")
                     isMenuOpen = true
+                    // Keyboard focus is moving to the menu window: no key may stay held on the host.
+                    KeyboardSupport.releaseAllKeys()
                 }
             }
             Button {
@@ -2389,6 +2391,9 @@ struct _FlatDisplayStreamView: View {
             return
         }
         hasPerformedTeardown = true
+
+        // Queued before the connection is stopped; the input stream drains its queue on stop.
+        KeyboardSupport.releaseAllKeys()
 
         AudioHelpers.pinStreamAudioToScene(nil)
         streamSceneID = nil

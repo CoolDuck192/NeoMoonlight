@@ -3669,6 +3669,8 @@ struct _CurvedDisplayStreamView: View {
                 } else {
                     pushWindow(id: "mainView")
                     isMenuOpen = true
+                    // Keyboard focus is moving to the menu window: no key may stay held on the host.
+                    KeyboardSupport.releaseAllKeys()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { positionMenuWindow() }
                 }
                 guard viewModel.activelyStreaming && !showMenuPanel else { return }
@@ -4002,6 +4004,8 @@ struct _CurvedDisplayStreamView: View {
                 } else {
                     pushWindow(id: "mainView")
                     isMenuOpen = true
+                    // Keyboard focus is moving to the menu window: no key may stay held on the host.
+                    KeyboardSupport.releaseAllKeys()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         positionMenuWindow()
                     }
@@ -6050,6 +6054,9 @@ struct _CurvedDisplayStreamView: View {
     private func performCompleteTeardown() {
         guard !hasPerformedTeardown else { return }
         hasPerformedTeardown = true
+
+        // Queued before the connection is stopped; the input stream drains its queue on stop.
+        KeyboardSupport.releaseAllKeys()
 
         AudioHelpers.pinStreamAudioToScene(nil)
         immersiveSpaceSceneID = nil
