@@ -867,6 +867,8 @@ struct SettingsView: View {
                             .foregroundColor(.gray)
                     }
                     .padding(.vertical, 4)
+
+                    ScreenSamplingSettingRow()
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Dark Mode", isOn: Binding(

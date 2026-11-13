@@ -994,6 +994,7 @@ struct _CurvedDisplayStreamView: View {
     @AppStorage("curved.curveMagnitude") private var savedCurveMagnitude: Double = Double(CurvatureTick.defaultTick.magnitude)
     @State private var curveMagnitude: Float = CurvatureTick.defaultTick.magnitude
     @State private var curvatureSliderDragging = false
+    @AppStorage(StreamScreenSampling.storageKey) private var screenSamplingMode: Int = StreamScreenSampling.standard
     @State private var tiltAngle: Float = CurvedFirstLaunch.clampTilt(
         Float(UserDefaults.standard.double(forKey: "curved.tiltAngle"))
     )
@@ -1424,6 +1425,7 @@ struct _CurvedDisplayStreamView: View {
                 self.renderGateOpen = true
                 handleActiveStreaming(oldValue: oldValue, newValue: newValue)
             }
+            .onChange(of: screenSamplingMode) { _, _ in updateScreenMaterial() }
             .onChange(of: videoMode) { _, _ in updateScreenMaterial() }
             .onChange(of: screenAspect) { oldAspect, newAspect in
                 followDefaultScaleAcrossAspectChange(from: oldAspect, to: newAspect)
@@ -4862,10 +4864,10 @@ struct _CurvedDisplayStreamView: View {
                 surfaceMaterial = mat
                 screen.model?.materials = [mat]
             } else {
-                screen.model?.materials = [UnlitMaterial(texture: texture)]
+                screen.model?.materials = [StreamScreenSampling.screenMaterial(texture: texture)]
             }
         } else {
-            screen.model?.materials = [UnlitMaterial(texture: self.texture)]
+            screen.model?.materials = [StreamScreenSampling.screenMaterial(texture: self.texture)]
         }
     }
 
@@ -5046,10 +5048,10 @@ struct _CurvedDisplayStreamView: View {
                 surfaceMaterial = mat
                 screen.model?.materials = [mat]
             } else {
-                screen.model?.materials = [UnlitMaterial(texture: texture)]
+                screen.model?.materials = [StreamScreenSampling.screenMaterial(texture: texture)]
             }
         } else {
-            screen.model?.materials = [UnlitMaterial(texture: self.texture)]
+            screen.model?.materials = [StreamScreenSampling.screenMaterial(texture: self.texture)]
         }
     }
     
@@ -5156,9 +5158,9 @@ struct _CurvedDisplayStreamView: View {
         }
         
         if videoMode == .standard2D {
-            screen = ModelEntity(mesh: mesh, materials: [UnlitMaterial(texture: texture)])
+            screen = ModelEntity(mesh: mesh, materials: [StreamScreenSampling.screenMaterial(texture: texture)])
         } else {
-            screen = ModelEntity(mesh: mesh, materials: [UnlitMaterial(texture: texture)])
+            screen = ModelEntity(mesh: mesh, materials: [StreamScreenSampling.screenMaterial(texture: texture)])
         }
 
         // Generate curved collision mesh that matches visual geometry
