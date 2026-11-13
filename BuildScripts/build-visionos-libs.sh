@@ -50,6 +50,22 @@ mkdir -p "$WORK/opus-src" "$WORK/sdl2-src"
 tar xzf "$WORK/opus-${OPUS_VERSION}.tar.gz" --strip-components=1 -C "$WORK/opus-src"
 tar xzf "$WORK/SDL2-${SDL_VERSION}.tar.gz" --strip-components=1 -C "$WORK/sdl2-src"
 
+# SDL_IsTablet() in SDL.c calls SDL_IsIPad(), which is defined in the UIKit
+# video driver. Video is switched off below, so without this the archive has an
+# undefined symbol and a Debug build of the app (no dead-code stripping) fails
+# to link.
+cat >> "$WORK/sdl2-src/src/SDL.c" <<'EOF'
+
+/* Added by build-visionos-libs.sh: the UIKit video driver that normally
+ * defines this function is not part of this build. */
+#if defined(__IPHONEOS__) && !defined(SDL_VIDEO_DRIVER_UIKIT)
+SDL_bool SDL_IsIPad(void)
+{
+    return SDL_FALSE;
+}
+#endif
+EOF
+
 # build <name> <source dir> <sdk> <archive name> <destination dir> [cmake args...]
 build() {
     local name="$1" src="$2" sdk="$3" archive="$4" dest="$5"
@@ -114,6 +130,29 @@ build opus "$WORK/opus-src" xros        libopus.a "$OUT/opus/lib/visionOS"     "
 build opus "$WORK/opus-src" xrsimulator libopus.a "$OUT/opus/lib/visionOS-Sim" "${OPUS_ARGS[@]}"
 build sdl2 "$WORK/sdl2-src" xros        libSDL2.a "$OUT/SDL2/lib/visionOS"     "${SDL_ARGS[@]}"
 build sdl2 "$WORK/sdl2-src" xrsimulator libSDL2.a "$OUT/SDL2/lib/visionOS-Sim" "${SDL_ARGS[@]}"
+
+# An archive must define every one of its own functions that it refers to.
+# A Release build of the app can hide a gap like that (the unused caller is
+# stripped), a Debug build cannot.
+# check_self_contained <archive> <regex matching the library's own symbols>
+check_self_contained() {
+    local lib="$1" pattern="$2" missing
+    missing="$(comm -23 \
+        <(nm -u "$lib" 2>/dev/null | awk '{ print $NF }' | grep -E "$pattern" | sort -u) \
+        <(nm -U "$lib" 2>/dev/null | awk '{ print $NF }' | sort -u))"
+    if [ -n "$missing" ]; then
+        echo "error: $lib refers to symbols it does not define:" >&2
+        echo "$missing" >&2
+        exit 1
+    fi
+    echo "-- $lib defines every symbol of its own that it uses"
+}
+
+echo "== Checking the archives"
+check_self_contained "$OUT/opus/lib/visionOS/libopus.a"     '^_(opus|celt|silk)_'
+check_self_contained "$OUT/opus/lib/visionOS-Sim/libopus.a" '^_(opus|celt|silk)_'
+check_self_contained "$OUT/SDL2/lib/visionOS/libSDL2.a"     '^_SDL_'
+check_self_contained "$OUT/SDL2/lib/visionOS-Sim/libSDL2.a" '^_SDL_'
 
 echo "== Done"
 ls -la "$OUT/opus/lib/visionOS" "$OUT/opus/lib/visionOS-Sim" "$OUT/SDL2/lib/visionOS" "$OUT/SDL2/lib/visionOS-Sim"
