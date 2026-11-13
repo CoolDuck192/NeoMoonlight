@@ -1,0 +1,57 @@
+name: install script check
+
+# Runs BuildScripts/install-on-vision-pro.sh on a Mac that has no headset and
+# no developer account. That covers the steps before the build: finding Xcode
+# and the visionOS SDK, working out the developer team, writing the signing
+# file and looking for a paired headset. Signing and installing cannot be
+# checked here.
+
+on:
+  push:
+    branches: [self-build, 'port/**', 'xcode27**']
+    paths:
+      - BuildScripts/install-on-vision-pro.sh
+      - .github/workflows/install-script-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Steps before the build
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Help text
+        run: BuildScripts/install-on-vision-pro.sh --help
+
+      - name: Stops when no developer team can be found
+        run: |
+          set +e
+          out="$(BuildScripts/install-on-vision-pro.sh 2>&1)"
+          status=$?
+          echo "$out"
+          [ "$status" = "1" ] || { echo "::error::expected exit status 1, got $status"; exit 1; }
+          echo "$out" | grep -q "could not find your developer team" || { echo "::error::expected the missing-team message"; exit 1; }
+          [ ! -e Config/Signing.local.xcconfig ] || { echo "::error::the signing file must not be written without a team"; exit 1; }
+
+      - name: Writes the signing file, then stops when no headset is paired
+        run: |
+          set +e
+          out="$(BuildScripts/install-on-vision-pro.sh --team ABCDE12345 --bundle-id com.example.check 2>&1)"
+          status=$?
+          echo "$out"
+          [ "$status" = "1" ] || { echo "::error::expected exit status 1, got $status"; exit 1; }
+          echo "$out" | grep -q "Xcode does not see a Vision Pro" || { echo "::error::expected the no-headset message"; exit 1; }
+          grep -q "^DEVELOPMENT_TEAM = ABCDE12345$" Config/Signing.local.xcconfig || { echo "::error::signing file is wrong"; exit 1; }
+          grep -q "^PRODUCT_BUNDLE_IDENTIFIER = com.example.check$" Config/Signing.local.xcconfig || { echo "::error::signing file is wrong"; exit 1; }
+
+      - name: Destinations Xcode reports (for reference)
+        if: always()
+        run: xcodebuild -project Moonlight.xcodeproj -scheme "Moonlight XrOS" -showdestinations || true
