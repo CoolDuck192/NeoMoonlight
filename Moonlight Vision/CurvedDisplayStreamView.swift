@@ -4882,7 +4882,9 @@ struct _CurvedDisplayStreamView: View {
 
     /// One reconnect attempt failed (posted by MainViewModel on the main thread).
     private func handleReconnectAttemptFailed() {
-        guard viewModel.isReconnecting, !hasPerformedTeardown else { return }
+        // needsResume: the app was suspended again. The failure belongs to an attempt
+        // that was already dropped, and the resume path opens a fresh window.
+        guard viewModel.isReconnecting, !needsResume, !hasPerformedTeardown else { return }
 
         // Drop the failed manager so the next attempt builds a fresh one.
         streamMan?.stopStream()
