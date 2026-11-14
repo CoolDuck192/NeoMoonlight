@@ -184,6 +184,8 @@ private struct MainRootView<Content: View>: View {
         vm.currentStreamConfig = config
         vm.streamState = .starting
         vm.isReconnecting = false
+        // Left set when the stream view went away while suspended (see prepareForNewStream).
+        vm.isSuspendingForBackground = false
         
         print("[Relaunch] Re-opening \(renderer) with new session \(newToken)")
         

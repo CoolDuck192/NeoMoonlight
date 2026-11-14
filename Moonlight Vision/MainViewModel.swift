@@ -1035,6 +1035,9 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         let newToken = UUID().uuidString
         activeSessionToken = newToken
         isReconnecting = false
+        // Left set when a stream view goes away while suspended; it would make the
+        // new stream ignore a lost connection and drop its failure message.
+        isSuspendingForBackground = false
         debugLog("[Safety] Generated new activeSessionToken: \(newToken)")
         
         // If we're stuck in stopping state for too long, force reset
