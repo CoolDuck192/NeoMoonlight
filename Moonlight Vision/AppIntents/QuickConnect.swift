@@ -43,10 +43,11 @@ struct ContinueCard: View {
 
     private let brandOrange = Color(red: 0.976, green: 0.627, blue: 0.251)
 
-    /// The saved PC, if it is still in the list and paired.
+    /// The saved PC, if it is still in the list. A PC that lost its pairing keeps the
+    /// card, so that connect(to:) can say it needs to be paired again.
     private var continueHost: TemporaryHost? {
         guard !lastHostUUID.isEmpty, !lastAppID.isEmpty else { return nil }
-        return viewModel.hosts.first(where: { $0.uuid == lastHostUUID && $0.pairState == .paired })
+        return viewModel.hosts.first(where: { $0.uuid == lastHostUUID })
     }
 
     var body: some View {
