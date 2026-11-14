@@ -149,7 +149,7 @@ enum StreamEndReason {
 
     static func stageFailureMessage(stage: String, errorCode: Int, portTestFlags: Int) -> String {
         if networkStages.contains(stage) {
-            var text = "Could not reach your PC while starting the stream (step: \(stage), error \(errorCode)). Check that the PC is awake and on the same network as this headset."
+            var text = "Could not reach your PC while starting the stream (step: \(stage), error \(errorCode)). Check that the PC is awake and that this headset can reach it over the network."
             let ports = portList(from: portTestFlags)
             if !ports.isEmpty {
                 text += " If a firewall or router sits in between, these ports must be open: \(ports)."
