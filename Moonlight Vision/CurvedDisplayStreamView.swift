@@ -5912,7 +5912,9 @@ struct _CurvedDisplayStreamView: View {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard !self.hasPerformedTeardown, self.viewModel.activelyStreaming, self.streamMan == nil else {
+            // needsResume: the app was suspended during this half second. Start nothing
+            // now; the resume path starts the stream when the app is active again.
+            guard !self.hasPerformedTeardown, !self.needsResume, self.viewModel.activelyStreaming, self.streamMan == nil else {
                 print("[CurvedDisplay] Aborting stream start - Teardown: \(self.hasPerformedTeardown), Streaming: \(self.viewModel.activelyStreaming), Exists: \(self.streamMan != nil)")
                 return
             }
