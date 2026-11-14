@@ -240,8 +240,11 @@ struct AppsView: View {
         if viewModel.activelyStreaming || viewModel.streamState != .idle {
             // With Keep App Running on, Disconnect leaves the old app open and the PC
             // would bring it back instead of starting the new one. Quit it first.
+            // Only when this list belongs to the PC being streamed: the quit goes to
+            // this list's PC, and another PC's running app must be left alone.
             let quitOldAppFirst = viewModel.keepAppRunningOnDisconnect
                 && !viewModel.isCoopSession
+                && viewModel.currentStreamHost?.uuid == host.uuid
                 && viewModel.currentlyStreamingAppId != app.id
             print("[AppsView] Requesting new stream while another is active. Disconnecting first.")
             viewModel.userDidRequestDisconnect()
