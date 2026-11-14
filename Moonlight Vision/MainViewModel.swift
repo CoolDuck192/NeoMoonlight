@@ -674,7 +674,11 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
             let appListResponse = ConnectionHelper.getAppList(for: host)
             DispatchQueue.main.async {
                 self.appListRefreshesInFlight.remove(host.uuid)
-                self.discoveryManager?.resumeDiscovery(for: host)
+                // A PC that was removed while its list was loading must not go back
+                // into discovery (a discovery answer would save it again).
+                if self.hosts.contains(where: { $0.uuid == host.uuid }) {
+                    self.discoveryManager?.resumeDiscovery(for: host)
+                }
                 self.applyAppListResponse(appListResponse, to: host)
             }
         }
