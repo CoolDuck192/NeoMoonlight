@@ -392,13 +392,14 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
     }
 
     /// Which PC a Disconnect sends its quit request to.
-    /// A co-op guest streams from someone else's PC and keeps the old lookup, which
-    /// finds nothing for a guest, so a guest still never sends a quit.
+    /// A co-op guest streams from someone else's PC and never sends a quit. (The old
+    /// lookup by app id is not used for a guest: now that app lists are stored, it
+    /// would match the other person's PC or the guest's own PC.)
     private func hostForQuitRequest(appId: String) -> TemporaryHost? {
-        let byAppList = hosts.first(where: { $0.appList.contains(where: { $0.id == appId || $0.name == appId }) })
         if isCoopSession && assignedControllerSlot == 1 {
-            return byAppList
+            return nil
         }
+        let byAppList = hosts.first(where: { $0.appList.contains(where: { $0.id == appId || $0.name == appId }) })
         return currentStreamHost ?? byAppList
     }
 
