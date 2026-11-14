@@ -253,6 +253,9 @@ struct AppsView: View {
                 await viewModel.waitForTeardown()
                 if quitOldAppFirst {
                     _ = await viewModel.quitRunningApp(on: host)
+                    // The quit can take seconds. If another stream was started meanwhile,
+                    // leave it alone: going on would invalidate its session.
+                    guard !viewModel.activelyStreaming, viewModel.streamState == .idle else { return }
                 }
                 print("[AppsView] Teardown complete. Now opening new stream.")
                 openAppStream(app: app)
