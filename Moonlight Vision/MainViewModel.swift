@@ -623,11 +623,14 @@ class MainViewModel: NSObject, ObservableObject, DiscoveryCallback, PairCallback
         }
 
         let serverInfoResponse = ServerInfoResponse()
-        let request = HttpRequest(for: serverInfoResponse, with: httpManager?.newServerInfoRequest(false), fallbackError: 401, fallbackRequest: httpManager?.newHttpServerInfoRequest())
 
         print("Executing server info request for host: \(host.name) at \(host.activeAddress ?? host.address ?? "N/A")")
         
         await Task.detached {
+            // The request is built here, not on the main thread: for a paired PC whose
+            // HTTPS port is not known yet, building it asks the PC for the port first
+            // and waits up to 5 s when the PC does not answer.
+            let request = HttpRequest(for: serverInfoResponse, with: httpManager?.newServerInfoRequest(false), fallbackError: 401, fallbackRequest: httpManager?.newHttpServerInfoRequest())
             httpManager?.executeRequestSynchronously(request)
         }.value
 
